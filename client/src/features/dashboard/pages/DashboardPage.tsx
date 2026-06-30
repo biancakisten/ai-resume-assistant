@@ -1,36 +1,34 @@
 import AppLayout from "../../../shared/layouts/AppLayout";
-import Button from "../../../shared/components/ui/Button/Button";
-import Card from "../../../shared/components/ui/Card/Card";
+import WelcomeBanner from "../components/WelcomeBanner";
+import ScoreCard from "../components/ScoreCard";
+import QuickActions from "../components/QuickActions";
+import RecentAnalysis from "../components/RecentAnalysis";
+import RecentJobDescriptions from "../components/RecentJobDescriptions";
 
 function DashboardPage() {
   return (
     <AppLayout>
-      <div className="space-y-8">
-        <div>
-          <h2 className="text-4xl font-bold">
-            Welcome back, Bianca 👋
-          </h2>
+      <WelcomeBanner />
 
-          <p className="mt-2 text-slate-600">
-            Ready to improve your resume?
-          </p>
-        </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <ScoreCard
+          title="Resume Score"
+          score={82}
+        />
 
-        <Card>
-          <h3 className="text-xl font-semibold">
-            Resume Score
-          </h3>
+        <ScoreCard
+          title="ATS Score"
+          score={76}
+        />
+      </div>
 
-          <p className="mt-4 text-5xl font-bold text-blue-600">
-            82%
-          </p>
+      <div className="mt-8">
+        <QuickActions />
+      </div>
 
-          <div className="mt-6">
-            <Button>
-              Analyze Resume
-            </Button>
-          </div>
-        </Card>
+      <div className="mt-8 grid gap-6 lg:grid-cols-2">
+        <RecentAnalysis />
+        <RecentJobDescriptions />
       </div>
     </AppLayout>
   );

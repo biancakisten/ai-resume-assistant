@@ -1,5 +1,7 @@
+import { ReactNode } from "react";
+
 type ButtonProps = {
-  children: React.ReactNode;
+  children: ReactNode;
   variant?: "primary" | "secondary";
   onClick?: () => void;
 };
@@ -9,20 +11,20 @@ function Button({
   variant = "primary",
   onClick,
 }: ButtonProps) {
-  const baseStyles =
-    "rounded-lg px-4 py-2 font-medium transition-colors";
+  const base =
+    "rounded-lg px-4 py-2 font-medium transition-all duration-200";
 
   const variants = {
     primary:
-      "bg-blue-600 text-white hover:bg-blue-700",
+      "bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)]",
 
     secondary:
-      "bg-slate-200 text-slate-800 hover:bg-slate-300",
+      "border border-[var(--color-border)] bg-white hover:bg-slate-100",
   };
 
   return (
     <button
-      className={`${baseStyles} ${variants[variant]}`}
+      className={`${base} ${variants[variant]}`}
       onClick={onClick}
     >
       {children}
