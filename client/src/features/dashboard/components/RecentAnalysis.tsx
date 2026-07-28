@@ -1,4 +1,4 @@
-import Card from "../../../shared/components/ui/Card/Card";
+import Card from "../../../shared/components/UI/Card/Card";
 
 function RecentAnalysis() {
   return (
