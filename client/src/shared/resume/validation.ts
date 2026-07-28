@@ -12,6 +12,8 @@ import {
 type UnknownRecord = Record<string, unknown>
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const PHOTOGRAPH_DATA_URL_PATTERN =
+  /^data:image\/(?:jpeg|png|webp);base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/i
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -107,6 +109,50 @@ function validateUrl(
   } catch {
     addError(errors, path, 'invalid_url', `${path} must be a valid HTTP(S) URL.`)
   }
+}
+
+function validatePhotographUrl(
+  value: unknown,
+  path: string,
+  errors: ResumeValidationError[],
+): void {
+  const stringValue = requireString(value, path, errors)
+  if (stringValue === null) return
+
+  if (PHOTOGRAPH_DATA_URL_PATTERN.test(stringValue)) {
+    const payload = stringValue.slice(stringValue.indexOf(',') + 1)
+    if (payload.length > 0) return
+  } else {
+    try {
+      const url = new URL(stringValue)
+      if (url.protocol === 'http:' || url.protocol === 'https:') return
+      if (url.protocol === 'blob:') {
+        const blobSource = stringValue.slice('blob:'.length)
+        if (/^null\/[^\s]+$/i.test(blobSource)) return
+        try {
+          const sourceUrl = new URL(blobSource)
+          if (
+            (sourceUrl.protocol === 'http:' ||
+              sourceUrl.protocol === 'https:') &&
+            sourceUrl.pathname.length > 1
+          ) {
+            return
+          }
+        } catch {
+          // The photograph URL error below covers an invalid blob source.
+        }
+      }
+    } catch {
+      // A field-specific error is returned below.
+    }
+  }
+
+  addError(
+    errors,
+    path,
+    'invalid_url',
+    `${path} must be a valid HTTP(S), blob, or supported image data URL.`,
+  )
 }
 
 function readMonthYear(
@@ -213,7 +259,7 @@ function validatePhotograph(
   const photograph = requireRecord(value, path, errors)
   if (photograph === null) return
 
-  validateUrl(photograph.url, `${path}.url`, errors, true)
+  validatePhotographUrl(photograph.url, `${path}.url`, errors)
   requireString(photograph.fileName, `${path}.fileName`, errors)
   if (
     typeof photograph.mimeType !== 'string' ||

@@ -108,6 +108,42 @@ describe('required and formatted fields', () => {
     )
   })
 
+  it.each([
+    'http://images.example.com/portrait.jpg',
+    'https://images.example.com/portrait.webp',
+    'blob:https://resume.example.com/7d92d3d8-37c8-4ca2-92b9-404431c9b342',
+    'data:image/jpeg;base64,/9j/4AAQSkZJRg==',
+    'data:image/png;base64,iVBORw0KGgo=',
+    'data:image/webp;base64,UklGRg==',
+  ])('accepts the supported photograph URL format: %s', (url) => {
+    expect(
+      validateResumeData({
+        ...completeSampleResume,
+        photograph: { ...completeSampleResume.photograph, url },
+      }),
+    ).toEqual({ valid: true, errors: [] })
+  })
+
+  it.each([
+    ['malformed URL', 'not-a-url', 'invalid_url'],
+    ['malformed blob URL', 'blob:not-a-browser-object-url', 'invalid_url'],
+    ['blob URL without an object identifier', 'blob:https://example.com', 'invalid_url'],
+    ['non-image data URL', 'data:text/plain;base64,SGVsbG8=', 'invalid_url'],
+    ['unsupported image data URL', 'data:image/gif;base64,R0lGODlh', 'invalid_url'],
+    ['empty image data payload', 'data:image/png;base64,', 'invalid_url'],
+    ['malformed base64 payload', 'data:image/png;base64,not valid!', 'invalid_url'],
+    ['empty photograph URL', '', 'required'],
+  ])('rejects a %s', (_label, url, code) => {
+    expectError(
+      {
+        ...completeSampleResume,
+        photograph: { ...completeSampleResume.photograph, url },
+      },
+      'photograph.url',
+      code,
+    )
+  })
+
   it('validates photograph metadata', () => {
     expectError(
       {
