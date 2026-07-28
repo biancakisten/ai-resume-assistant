@@ -1,4 +1,4 @@
-import Button from "../../../shared/components/ui/Button/Button";
+import Button from "../../../shared/components/UI/Button/Button";
 
 function QuickActions() {
   return (

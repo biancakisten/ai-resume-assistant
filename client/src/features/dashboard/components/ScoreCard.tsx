@@ -1,4 +1,4 @@
-import Card from "../../../shared/components/ui/Card/Card";
+import Card from "../../../shared/components/UI/Card/Card";
 
 type ScoreCardProps = {
   title: string;
