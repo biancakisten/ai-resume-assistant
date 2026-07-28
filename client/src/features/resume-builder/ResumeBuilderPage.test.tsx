@@ -1,0 +1,441 @@
+// @vitest-environment jsdom
+
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
+import { RESUME_LIMITS } from '../../shared/resume'
+import { EmploymentStep } from './steps/EmploymentStep'
+import { EducationStep } from './steps/EducationStep'
+import { LanguagesInterestsStep } from './steps/LanguagesInterestsStep'
+import { PersonalStep } from './steps/PersonalStep'
+import { SkillsTrainingStep } from './steps/SkillsTrainingStep'
+import ResumeBuilderPage from './pages/ResumeBuilderPage'
+import {
+  createEducationEntry,
+  createEmploymentEntry,
+  createInitialBuilderState,
+} from './resumeBuilderUtils'
+import type {
+  BuilderStepProps,
+  ResumeBuilderState,
+} from './types'
+import { useState, type ReactNode } from 'react'
+
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
+
+beforeEach(() => {
+  let objectUrlIndex = 0
+  Object.defineProperty(URL, 'createObjectURL', {
+    configurable: true,
+    value: vi.fn(() => {
+      objectUrlIndex += 1
+      return `blob:http://localhost/photo-${objectUrlIndex}`
+    }),
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    configurable: true,
+    value: vi.fn(),
+  })
+})
+
+function StateHarness({
+  initialState,
+  children,
+}: {
+  initialState: ResumeBuilderState
+  children: (props: BuilderStepProps) => ReactNode
+}) {
+  const [state, setState] = useState(initialState)
+  return children({ state, updateState: (updater) => setState(updater) })
+}
+
+function fillPersonalDetails() {
+  fireEvent.change(screen.getByLabelText('First name'), {
+    target: { value: 'Lerato' },
+  })
+  fireEvent.change(screen.getByLabelText('Last name'), {
+    target: { value: 'Mokoena' },
+  })
+  fireEvent.change(screen.getByLabelText('Professional job title'), {
+    target: { value: 'Software Developer' },
+  })
+  fireEvent.change(screen.getByLabelText('Email address'), {
+    target: { value: 'lerato@example.com' },
+  })
+  fireEvent.change(screen.getByLabelText('Phone number'), {
+    target: { value: '+27 71 555 0101' },
+  })
+  fireEvent.change(screen.getByLabelText('City'), {
+    target: { value: 'Johannesburg' },
+  })
+  fireEvent.change(screen.getByLabelText('Country'), {
+    target: { value: 'South Africa' },
+  })
+}
+
+function completeRequiredStepsToLanguages() {
+  fillPersonalDetails()
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+  fireEvent.change(screen.getByLabelText('Professional overview'), {
+    target: { value: 'A careful software developer who builds accessible products.' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add employment' }))
+  fireEvent.change(screen.getByLabelText('Job title'), {
+    target: { value: 'Developer' },
+  })
+  fireEvent.change(screen.getByLabelText('Employer'), {
+    target: { value: 'Example Studio' },
+  })
+  fireEvent.change(screen.getByLabelText('City'), {
+    target: { value: 'Cape Town' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Add education' }))
+  fireEvent.change(screen.getByLabelText('Qualification'), {
+    target: { value: 'Diploma in Software Development' },
+  })
+  fireEvent.change(screen.getByLabelText('Institution'), {
+    target: { value: 'Example College' },
+  })
+  fireEvent.change(screen.getByLabelText('City'), {
+    target: { value: 'Durban' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+  const technicalInput = screen.getByLabelText('Add technical skills')
+  fireEvent.change(technicalInput, { target: { value: 'TypeScript' } })
+  fireEvent.keyDown(technicalInput, { key: 'Enter' })
+  const softInput = screen.getByLabelText('Add soft skills')
+  fireEvent.change(softInput, { target: { value: 'Communication' } })
+  fireEvent.keyDown(softInput, { key: 'Enter' })
+  fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+}
+
+describe('resume builder navigation', () => {
+  it('renders the first step without Back and keeps future steps locked', () => {
+    render(<ResumeBuilderPage />)
+    expect(screen.getByRole('heading', { name: 'Let’s start with the basics' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
+    expect(
+      (screen.getByRole('button', {
+        name: /Step 3: Employment history. Locked/,
+      }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+  })
+
+  it('blocks invalid required navigation and focuses the first invalid field', async () => {
+    render(<ResumeBuilderPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByText('Please fix the following before continuing:')).toBeTruthy()
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('First name')),
+    )
+  })
+
+  it('supports successful Next and Back while preserving state', () => {
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByRole('heading', { name: 'Introduce your professional story' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Lerato')
+  })
+
+  it('skips the optional step, marks it skipped, and permits revisiting it', () => {
+    render(<ResumeBuilderPage />)
+    completeRequiredStepsToLanguages()
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    expect(screen.getByRole('heading', { name: 'Review your resume information' })).toBeTruthy()
+    const languageStep = screen.getByRole('button', {
+      name: /Step 6: Languages and interests. Skipped/,
+    })
+    fireEvent.click(languageStep)
+    expect(screen.getByRole('button', { name: 'Add language' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Skip for now' })).toBeTruthy()
+  })
+
+  it('runs full validation on Review and links back to invalid steps', () => {
+    render(<ResumeBuilderPage />)
+    completeRequiredStepsToLanguages()
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit personal details' }),
+    )
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: '' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: /Step 7: Review. Available/ }),
+    )
+    expect(screen.getByText('Your resume still needs attention')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Fix Personal details' })).toBeTruthy()
+  })
+})
+
+describe('start over and unsaved progress', () => {
+  it('keeps information when Start Over is cancelled', () => {
+    render(<ResumeBuilderPage />)
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: 'Thandi' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Start Over' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('Thandi')
+  })
+
+  it('clears all state after Start Over is confirmed', () => {
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start Over' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    expect(screen.getByRole('heading', { name: 'Let’s start with the basics' })).toBeTruthy()
+    expect((screen.getByLabelText('First name') as HTMLInputElement).value).toBe('')
+  })
+
+  it('registers and cleans up the unsaved-progress warning', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener')
+    const removeSpy = vi.spyOn(window, 'removeEventListener')
+    const view = render(<ResumeBuilderPage />)
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: 'Naledi' },
+    })
+    expect(
+      addSpy.mock.calls.some(([eventName]) => eventName === 'beforeunload'),
+    ).toBe(true)
+    fireEvent.change(screen.getByLabelText('First name'), {
+      target: { value: '' },
+    })
+    expect(
+      removeSpy.mock.calls.some(([eventName]) => eventName === 'beforeunload'),
+    ).toBe(true)
+    view.unmount()
+    expect(
+      removeSpy.mock.calls.some(([eventName]) => eventName === 'beforeunload'),
+    ).toBe(true)
+  })
+})
+
+describe('repeatable entries and limits', () => {
+  it('enforces employment and education maximums', () => {
+    const employmentState = createInitialBuilderState()
+    employmentState.resume.employmentHistory = Array.from(
+      { length: RESUME_LIMITS.employmentHistory },
+      createEmploymentEntry,
+    )
+    employmentState.ids.employment = Array.from(
+      { length: RESUME_LIMITS.employmentHistory },
+      (_, index) => `employment-${index}`,
+    )
+    const { unmount } = render(
+      <StateHarness initialState={employmentState}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      (screen.getByRole('button', { name: 'Add employment' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+    expect(screen.getByText(/Maximum reached/)).toBeTruthy()
+    unmount()
+
+    const educationState = createInitialBuilderState()
+    educationState.resume.education = Array.from(
+      { length: RESUME_LIMITS.education },
+      createEducationEntry,
+    )
+    educationState.ids.education = Array.from(
+      { length: RESUME_LIMITS.education },
+      (_, index) => `education-${index}`,
+    )
+    render(
+      <StateHarness initialState={educationState}>
+        {(props) => <EducationStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      (screen.getByRole('button', { name: 'Add education' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true)
+  })
+
+  it('identifies entries in delete confirmation and supports cancellation', () => {
+    const state = createInitialBuilderState()
+    state.resume.employmentHistory = [
+      { ...createEmploymentEntry(), jobTitle: 'Product Engineer' },
+    ]
+    state.ids.employment = ['employment-one']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    expect(screen.getByText(/Remove Product Engineer/)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.getByDisplayValue('Product Engineer')).toBeTruthy()
+  })
+
+  it('hides end dates for current employment and current study', () => {
+    const employmentState = createInitialBuilderState()
+    employmentState.resume.employmentHistory = [createEmploymentEntry()]
+    employmentState.ids.employment = ['employment-one']
+    const { unmount } = render(
+      <StateHarness initialState={employmentState}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+    expect(screen.getByText('End date')).toBeTruthy()
+    fireEvent.click(screen.getByLabelText('I currently work here'))
+    expect(screen.queryByText('End date')).toBeNull()
+    unmount()
+
+    const educationState = createInitialBuilderState()
+    educationState.resume.education = [createEducationEntry()]
+    educationState.ids.education = ['education-one']
+    render(
+      <StateHarness initialState={educationState}>
+        {(props) => <EducationStep {...props} />}
+      </StateHarness>,
+    )
+    fireEvent.click(screen.getByLabelText('I am currently studying here'))
+    expect(screen.queryByText('End date')).toBeNull()
+  })
+
+  it('reorders entries with accessible move controls', () => {
+    const state = createInitialBuilderState()
+    state.resume.employmentHistory = [
+      { ...createEmploymentEntry(), jobTitle: 'First role' },
+      { ...createEmploymentEntry(), jobTitle: 'Second role' },
+    ]
+    state.ids.employment = ['first', 'second']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Move role 2 up' }))
+    const titles = screen.getAllByLabelText('Job title') as HTMLInputElement[]
+    expect(titles.map((input) => input.value)).toEqual(['Second role', 'First role'])
+  })
+})
+
+describe('skills, languages, and photographs', () => {
+  it('prevents duplicate skills and disables input at the maximum', () => {
+    const state = createInitialBuilderState()
+    state.resume.technicalSkills = ['TypeScript']
+    state.ids.technicalSkills = ['technical-one']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <SkillsTrainingStep {...props} />}
+      </StateHarness>,
+    )
+    const input = screen.getByLabelText('Add technical skills')
+    fireEvent.change(input, { target: { value: ' typescript ' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByText('typescript has already been added.')).toBeTruthy()
+    cleanup()
+
+    const maximumState = createInitialBuilderState()
+    maximumState.resume.technicalSkills = Array.from(
+      { length: RESUME_LIMITS.technicalSkills },
+      (_, index) => `Skill ${index}`,
+    )
+    maximumState.ids.technicalSkills = Array.from(
+      { length: RESUME_LIMITS.technicalSkills },
+      (_, index) => `skill-${index}`,
+    )
+    render(
+      <StateHarness initialState={maximumState}>
+        {(props) => <SkillsTrainingStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      (screen.getByLabelText('Add technical skills') as HTMLInputElement)
+        .disabled,
+    ).toBe(true)
+  })
+
+  it('prevents duplicate languages', () => {
+    const state = createInitialBuilderState()
+    state.resume.languages = [
+      { name: 'English', proficiency: 'Fluent' },
+      { name: 'isiZulu', proficiency: 'Professional' },
+    ]
+    state.ids.languages = ['english', 'zulu']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <LanguagesInterestsStep {...props} />}
+      </StateHarness>,
+    )
+    fireEvent.change(screen.getAllByLabelText('Language')[1], {
+      target: { value: ' english ' },
+    })
+    expect(screen.getByText('english has already been added.')).toBeTruthy()
+    expect(
+      (screen.getAllByLabelText('Language')[1] as HTMLInputElement).value,
+    ).toBe('isiZulu')
+  })
+
+  it('rejects invalid photograph type and size', () => {
+    render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <PersonalStep {...props} />}
+      </StateHarness>,
+    )
+    const input = screen.getByLabelText(/Photograph/) as HTMLInputElement
+    fireEvent.change(input, {
+      target: { files: [new File(['gif'], 'portrait.gif', { type: 'image/gif' })] },
+    })
+    expect(screen.getByText(/Choose a JPG/)).toBeTruthy()
+
+    const largeFile = new File(
+      [new Uint8Array(5 * 1024 * 1024 + 1)],
+      'large.png',
+      { type: 'image/png' },
+    )
+    fireEvent.change(input, { target: { files: [largeFile] } })
+    expect(screen.getByText('Photograph must be 5 MB or smaller.')).toBeTruthy()
+  })
+
+  it('adds, replaces, and removes a photograph', () => {
+    render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <PersonalStep {...props} />}
+      </StateHarness>,
+    )
+    const input = screen.getByLabelText(/Photograph/) as HTMLInputElement
+    fireEvent.change(input, {
+      target: {
+        files: [new File(['first'], 'first.png', { type: 'image/png' })],
+      },
+    })
+    expect(screen.getByText('first.png')).toBeTruthy()
+    fireEvent.change(input, {
+      target: {
+        files: [new File(['second'], 'second.webp', { type: 'image/webp' })],
+      },
+    })
+    expect(screen.getByText('second.webp')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photograph' }))
+    expect(screen.queryByText('second.webp')).toBeNull()
+  })
+})

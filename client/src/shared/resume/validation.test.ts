@@ -69,6 +69,11 @@ describe('required and formatted fields', () => {
       'personalDetails.email',
       'required',
     )
+    expectError(
+      invalidResumeFixtures.missingRequiredFields,
+      'personalDetails.professionalTitle',
+      'required',
+    )
   })
 
   it('rejects invalid email addresses', () => {

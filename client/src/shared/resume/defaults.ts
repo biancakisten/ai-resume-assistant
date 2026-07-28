@@ -13,6 +13,7 @@ export function createEmptyResumeData(): ResumeData {
     personalDetails: {
       firstName: '',
       lastName: '',
+      professionalTitle: '',
       email: '',
       phone: '',
       city: '',
