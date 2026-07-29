@@ -1,9 +1,20 @@
 import type { BuilderStepProps } from '../types'
+import { AiImproveControl } from '../ai/AiImproveControl'
 import { ErrorSummary, TextArea } from '../components/FormControls'
 import { TagInput } from '../components/TagInput'
 import { createUiId } from '../resumeBuilderUtils'
 
-export function OverviewStep({ state, updateState }: BuilderStepProps) {
+export function OverviewStep({ ai, state, updateState }: BuilderStepProps) {
+  const updateOverview = (value: string) =>
+    updateState((current) => ({
+      ...current,
+      dirty: true,
+      resume: {
+        ...current.resume,
+        professionalOverview: value,
+      },
+    }))
+
   return (
     <div className="space-y-7">
       <ErrorSummary errors={state.errors} />
@@ -12,18 +23,17 @@ export function OverviewStep({ state, updateState }: BuilderStepProps) {
         hint={`${state.resume.professionalOverview.length}/600 characters. Aim for 2–4 concise sentences.`}
         label="Professional overview"
         maxLength={600}
-        onChange={(event) =>
-          updateState((current) => ({
-            ...current,
-            dirty: true,
-            resume: {
-              ...current.resume,
-              professionalOverview: event.target.value,
-            },
-          }))
-        }
+        onChange={(event) => updateOverview(event.target.value)}
         path="professionalOverview"
         value={state.resume.professionalOverview}
+      />
+      <AiImproveControl
+        ai={ai}
+        fieldKey="professionalOverview"
+        fieldType="professionalOverview"
+        label="professional overview"
+        onChange={updateOverview}
+        text={state.resume.professionalOverview}
       />
       <TagInput
         createId={() => createUiId('strength')}
@@ -43,9 +53,6 @@ export function OverviewStep({ state, updateState }: BuilderStepProps) {
         preventDuplicates
         values={state.resume.strengths}
       />
-      <div className="rounded-xl border border-dashed border-purple-200 bg-purple-50 p-4 text-sm text-purple-900">
-        AI writing assistance is coming in a later phase. Your overview remains entirely manual for now.
-      </div>
     </div>
   )
 }

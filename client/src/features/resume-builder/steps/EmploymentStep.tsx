@@ -19,8 +19,9 @@ import {
   moveItem,
 } from '../resumeBuilderUtils'
 import type { BuilderStepProps } from '../types'
+import { AiImproveControl } from '../ai/AiImproveControl'
 
-export function EmploymentStep({ state, updateState }: BuilderStepProps) {
+export function EmploymentStep({ ai, state, updateState }: BuilderStepProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const entries = state.resume.employmentHistory
   const atMaximum = entries.length >= RESUME_LIMITS.employmentHistory
@@ -66,6 +67,11 @@ export function EmploymentStep({ state, updateState }: BuilderStepProps) {
 
   const remove = () => {
     if (deleteIndex === null) return
+    const entryId = state.ids.employment[deleteIndex]
+    if (entryId) {
+      ai.clear(`employment:${entryId}:responsibilities`)
+      ai.clear(`employment:${entryId}:achievements`)
+    }
     updateState((current) => ({
       ...current,
       dirty: true,
@@ -90,10 +96,11 @@ export function EmploymentStep({ state, updateState }: BuilderStepProps) {
       <ErrorSummary errors={state.errors} />
       {entries.map((entry, index) => {
         const prefix = `employmentHistory.${index}`
+        const entryId = state.ids.employment[index] ?? `employment-${index}`
         return (
           <fieldset
             className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50/60 p-5"
-            key={state.ids.employment[index] ?? `employment-${index}`}
+            key={entryId}
           >
             <legend className="px-2 text-lg font-bold text-slate-900">
               Role {index + 1}: {entry.jobTitle || entry.employer || 'New role'}
@@ -237,7 +244,8 @@ export function EmploymentStep({ state, updateState }: BuilderStepProps) {
             />
             <TextArea
               errors={state.errors}
-              label="Description or responsibilities"
+              label="Responsibilities"
+              maxLength={2000}
               onChange={(event) =>
                 updateEntry(index, (current) => ({
                   ...current,
@@ -247,6 +255,46 @@ export function EmploymentStep({ state, updateState }: BuilderStepProps) {
               optional
               path={`${prefix}.description`}
               value={entry.description}
+            />
+            <AiImproveControl
+              ai={ai}
+              fieldKey={`employment:${entryId}:responsibilities`}
+              fieldType="employmentResponsibilities"
+              label={`role ${index + 1} responsibilities`}
+              onChange={(value) =>
+                updateEntry(index, (current) => ({
+                  ...current,
+                  description: value,
+                }))
+              }
+              text={entry.description}
+            />
+            <TextArea
+              errors={state.errors}
+              label="Achievements"
+              maxLength={2000}
+              onChange={(event) =>
+                updateEntry(index, (current) => ({
+                  ...current,
+                  achievements: event.target.value,
+                }))
+              }
+              optional
+              path={`${prefix}.achievements`}
+              value={entry.achievements}
+            />
+            <AiImproveControl
+              ai={ai}
+              fieldKey={`employment:${entryId}:achievements`}
+              fieldType="employmentAchievements"
+              label={`role ${index + 1} achievements`}
+              onChange={(value) =>
+                updateEntry(index, (current) => ({
+                  ...current,
+                  achievements: value,
+                }))
+              }
+              text={entry.achievements}
             />
           </fieldset>
         )

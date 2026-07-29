@@ -1,5 +1,23 @@
 # React + TypeScript + Vite
 
+## Controlled AI assistance
+
+The Phase 6 endpoint runs as a Vercel Function at
+`POST /api/improve-resume-text`. Configure these server-side environment
+variables in Vercel and in an ignored local environment file when using
+`vercel dev`:
+
+```text
+OPENAI_API_KEY
+OPENAI_MODEL
+```
+
+Do not prefix either value with `VITE_`. The browser sends only the selected
+eligible field type, selected improvement style, and selected field text.
+See
+[`../docs/phase-6-controlled-ai-assistance.md`](../docs/phase-6-controlled-ai-assistance.md)
+for the complete architecture, consent, API, security, and setup notes.
+
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
 Currently, two official plugins are available:

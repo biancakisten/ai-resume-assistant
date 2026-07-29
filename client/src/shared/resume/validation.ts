@@ -333,6 +333,7 @@ function validateEmployment(
     requireString(record.city, `${entryPath}.city`, errors)
     requireString(record.country, `${entryPath}.country`, errors)
     optionalString(record.description, `${entryPath}.description`, errors)
+    optionalString(record.achievements, `${entryPath}.achievements`, errors)
     const start = readMonthYear(record.startDate, `${entryPath}.startDate`, errors)
     const current = requireBoolean(
       record.currentlyWorkingHere,

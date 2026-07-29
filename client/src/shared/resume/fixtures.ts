@@ -52,6 +52,8 @@ export const completeSampleResume: ResumeData = {
       currentlyWorkingHere: true,
       description:
         'Builds accessible React applications and mentors junior developers.',
+      achievements:
+        'Reduced accessibility defects by introducing keyboard testing to the release checklist.',
     },
     {
       jobTitle: 'Junior Web Developer',
@@ -64,6 +66,8 @@ export const completeSampleResume: ResumeData = {
       currentlyWorkingHere: false,
       description:
         'Delivered customer portals and improved automated test coverage.',
+      achievements:
+        'Improved release confidence by expanding automated coverage for customer journeys.',
     },
   ],
   education: [
@@ -123,6 +127,7 @@ const completedEmployment: EmploymentEntry = {
   endDate: { month: 12, year: 2023 },
   currentlyWorkingHere: false,
   description: '',
+  achievements: '',
 }
 
 export const invalidResumeFixtures = {
