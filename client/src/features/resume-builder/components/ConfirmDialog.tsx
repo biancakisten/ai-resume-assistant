@@ -20,16 +20,69 @@ export function ConfirmDialog({
   destructive = false,
 }: ConfirmDialogProps) {
   const cancelRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const onCancelRef = useRef(onCancel)
+
+  useEffect(() => {
+    onCancelRef.current = onCancel
+  }, [onCancel])
 
   useEffect(() => {
     if (!open) return
+
+    previouslyFocusedRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null
     cancelRef.current?.focus()
+
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCancelRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      const focusableControls = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      )
+      const firstControl = focusableControls[0]
+      const lastControl = focusableControls.at(-1)
+
+      if (!firstControl || !lastControl) {
+        event.preventDefault()
+        dialogRef.current?.focus()
+        return
+      }
+
+      if (
+        event.shiftKey &&
+        (document.activeElement === firstControl ||
+          !dialogRef.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        lastControl.focus()
+      } else if (
+        !event.shiftKey &&
+        (document.activeElement === lastControl ||
+          !dialogRef.current?.contains(document.activeElement))
+      ) {
+        event.preventDefault()
+        firstControl.focus()
+      }
     }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel, open])
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      previouslyFocusedRef.current?.focus()
+    }
+  }, [open])
 
   if (!open) return null
 
@@ -46,7 +99,9 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         aria-modal="true"
         className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+        ref={dialogRef}
         role="dialog"
+        tabIndex={-1}
       >
         <h2 className="text-xl font-bold text-slate-950" id="confirm-dialog-title">
           {title}

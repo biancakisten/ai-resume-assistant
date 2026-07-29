@@ -191,6 +191,43 @@ describe('resume builder navigation', () => {
 })
 
 describe('start over and unsaved progress', () => {
+  it('traps focus within the confirmation dialog', () => {
+    render(<ResumeBuilderPage />)
+    const opener = screen.getByRole('button', { name: 'Start Over' })
+    opener.focus()
+    fireEvent.click(opener)
+
+    const cancel = screen.getByRole('button', { name: 'Cancel' })
+    const confirm = screen.getByRole('button', { name: 'Start over' })
+    expect(document.activeElement).toBe(cancel)
+
+    fireEvent.keyDown(cancel, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(confirm)
+    fireEvent.keyDown(confirm, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel)
+  })
+
+  it('closes the confirmation dialog with Escape', () => {
+    render(<ResumeBuilderPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'Start Over' }))
+    const dialog = screen.getByRole('dialog')
+
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('restores focus to the control that opened the dialog', () => {
+    render(<ResumeBuilderPage />)
+    const opener = screen.getByRole('button', { name: 'Start Over' })
+    opener.focus()
+    fireEvent.click(opener)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(document.activeElement).toBe(opener)
+  })
+
   it('keeps information when Start Over is cancelled', () => {
     render(<ResumeBuilderPage />)
     fireEvent.change(screen.getByLabelText('First name'), {
@@ -437,5 +474,33 @@ describe('skills, languages, and photographs', () => {
     expect(screen.getByText('second.webp')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Remove photograph' }))
     expect(screen.queryByText('second.webp')).toBeNull()
+  })
+
+  it('allows the same photograph to be selected again after removal', () => {
+    render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <PersonalStep {...props} />}
+      </StateHarness>,
+    )
+    const input = screen.getByLabelText(/Photograph/) as HTMLInputElement
+    const photograph = new File(['portrait'], 'portrait.png', {
+      type: 'image/png',
+    })
+
+    fireEvent.change(input, { target: { files: [photograph] } })
+    expect(screen.getByText('portrait.png')).toBeTruthy()
+    Object.defineProperty(input, 'value', {
+      configurable: true,
+      value: 'C:\\fakepath\\portrait.png',
+      writable: true,
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove photograph' }))
+    expect(input.value).toBe('')
+
+    fireEvent.change(input, { target: { files: [photograph] } })
+
+    expect(screen.getByText('portrait.png')).toBeTruthy()
+    expect(URL.createObjectURL).toHaveBeenCalledTimes(2)
   })
 })

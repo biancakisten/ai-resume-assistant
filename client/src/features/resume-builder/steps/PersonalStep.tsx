@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react'
+import { useRef, useState, type ChangeEvent } from 'react'
 import {
   PHOTOGRAPH_MIME_TYPES,
   type PersonalDetails,
@@ -12,6 +12,7 @@ const MAX_PHOTOGRAPH_BYTES = 5 * 1024 * 1024
 
 export function PersonalStep({ state, updateState }: BuilderStepProps) {
   const [photographError, setPhotographError] = useState('')
+  const photographInputRef = useRef<HTMLInputElement>(null)
   const details = state.resume.personalDetails
 
   const updateDetail = <Key extends keyof PersonalDetails>(
@@ -83,6 +84,18 @@ export function PersonalStep({ state, updateState }: BuilderStepProps) {
       })
     }
     image.src = url
+  }
+
+  const removePhotograph = () => {
+    if (photographInputRef.current) {
+      photographInputRef.current.value = ''
+    }
+    setPhotographError('')
+    updateState((current) => ({
+      ...current,
+      dirty: true,
+      resume: { ...current.resume, photograph: null },
+    }))
   }
 
   return (
@@ -182,6 +195,7 @@ export function PersonalStep({ state, updateState }: BuilderStepProps) {
           className="block min-h-11 w-full rounded-lg border border-dashed border-slate-300 p-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-blue-50 file:px-3 file:py-2 file:font-semibold file:text-blue-700"
           id={fieldId('photograph.url')}
           onChange={handlePhotograph}
+          ref={photographInputRef}
           type="file"
         />
         {photographError && (
@@ -206,13 +220,7 @@ export function PersonalStep({ state, updateState }: BuilderStepProps) {
             </div>
             <button
               className="min-h-11 rounded-lg border border-red-200 px-3 text-sm font-semibold text-red-700"
-              onClick={() =>
-                updateState((current) => ({
-                  ...current,
-                  dirty: true,
-                  resume: { ...current.resume, photograph: null },
-                }))
-              }
+              onClick={removePhotograph}
               type="button"
             >
               Remove photograph
