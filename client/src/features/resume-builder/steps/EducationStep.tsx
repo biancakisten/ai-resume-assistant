@@ -14,8 +14,9 @@ import {
   moveItem,
 } from '../resumeBuilderUtils'
 import type { BuilderStepProps } from '../types'
+import { AiImproveControl } from '../ai/AiImproveControl'
 
-export function EducationStep({ state, updateState }: BuilderStepProps) {
+export function EducationStep({ ai, state, updateState }: BuilderStepProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
   const entries = state.resume.education
   const atMaximum = entries.length >= RESUME_LIMITS.education
@@ -51,6 +52,10 @@ export function EducationStep({ state, updateState }: BuilderStepProps) {
 
   const remove = () => {
     if (deleteIndex === null) return
+    const entryId = state.ids.education[deleteIndex]
+    if (entryId) {
+      ai.clear(`education:${entryId}:achievements`)
+    }
     updateState((current) => ({
       ...current,
       dirty: true,
@@ -75,10 +80,11 @@ export function EducationStep({ state, updateState }: BuilderStepProps) {
       <ErrorSummary errors={state.errors} />
       {entries.map((entry, index) => {
         const prefix = `education.${index}`
+        const entryId = state.ids.education[index] ?? `education-${index}`
         return (
           <fieldset
             className="space-y-5 rounded-2xl border border-slate-200 bg-slate-50/60 p-5"
-            key={state.ids.education[index] ?? `education-${index}`}
+            key={entryId}
           >
             <legend className="px-2 text-lg font-bold">
               Education {index + 1}: {entry.qualification || entry.institution || 'New entry'}
@@ -204,7 +210,8 @@ export function EducationStep({ state, updateState }: BuilderStepProps) {
             />
             <TextArea
               errors={state.errors}
-              label="Description"
+              label="Achievements"
+              maxLength={2000}
               onChange={(event) =>
                 updateEntry(index, (current) => ({
                   ...current,
@@ -214,6 +221,19 @@ export function EducationStep({ state, updateState }: BuilderStepProps) {
               optional
               path={`${prefix}.description`}
               value={entry.description}
+            />
+            <AiImproveControl
+              ai={ai}
+              fieldKey={`education:${entryId}:achievements`}
+              fieldType="educationAchievements"
+              label={`education ${index + 1} achievements`}
+              onChange={(value) =>
+                updateEntry(index, (current) => ({
+                  ...current,
+                  description: value,
+                }))
+              }
+              text={entry.description}
             />
           </fieldset>
         )

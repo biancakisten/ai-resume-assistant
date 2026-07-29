@@ -60,6 +60,7 @@ export function createEmploymentEntry(): EmploymentEntry {
     endDate: { month: 12, year },
     currentlyWorkingHere: false,
     description: '',
+    achievements: '',
   }
 }
 

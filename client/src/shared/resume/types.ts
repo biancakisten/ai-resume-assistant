@@ -64,6 +64,7 @@ export interface EmploymentEntry {
   endDate: MonthYear | null
   currentlyWorkingHere: boolean
   description: string
+  achievements: string
 }
 
 export interface EducationEntry {

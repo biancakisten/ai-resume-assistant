@@ -2,6 +2,7 @@ import type {
   ResumeData,
   ResumeValidationError,
 } from '../../shared/resume'
+import type { ResumeAiController } from './ai/types'
 
 export const RESUME_STEPS = [
   {
@@ -76,6 +77,7 @@ export interface ResumeBuilderState {
 
 export interface BuilderStepProps {
   state: ResumeBuilderState
+  ai: ResumeAiController
   updateState: (
     updater: (current: ResumeBuilderState) => ResumeBuilderState,
   ) => void

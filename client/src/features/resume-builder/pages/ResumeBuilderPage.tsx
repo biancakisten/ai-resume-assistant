@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { AiConsentDialog } from '../ai/AiConsentDialog'
+import { useResumeAiAssistance } from '../ai/useResumeAiAssistance'
 import { ProgressNav } from '../components/ProgressNav'
 import { ResumePreview } from '../components/ResumePreview'
 import { EducationStep } from '../steps/EducationStep'
@@ -31,6 +33,7 @@ export default function ResumeBuilderPage() {
     createInitialBuilderState,
   )
   const [showStartOver, setShowStartOver] = useState(false)
+  const ai = useResumeAiAssistance()
   const photographUrl = state.resume.photograph?.url
   const formHeadingRef = useRef<HTMLHeadingElement>(null)
 
@@ -82,6 +85,7 @@ export default function ResumeBuilderPage() {
 
   const navigateTo = (step: StepIndex) => {
     if (step > state.highestUnlockedStep) return
+    ai.clearStepState()
     setState((current) => ({ ...current, currentStep: step, errors: [] }))
     window.setTimeout(() => formHeadingRef.current?.focus(), 0)
   }
@@ -101,6 +105,7 @@ export default function ResumeBuilderPage() {
     }
     if (state.currentStep === 6) return
     const nextStep = (state.currentStep + 1) as StepIndex
+    ai.clearStepState()
     setState((current) => ({
       ...current,
       currentStep: nextStep,
@@ -125,6 +130,7 @@ export default function ResumeBuilderPage() {
       return
     }
     const nextStep = (state.currentStep + 1) as StepIndex
+    ai.clearStepState()
     setState((current) => ({
       ...current,
       currentStep: nextStep,
@@ -141,6 +147,7 @@ export default function ResumeBuilderPage() {
   }
 
   const confirmStartOver = () => {
+    ai.resetSession()
     setState((current) => ({
       ...createInitialBuilderState(),
       sessionId: current.sessionId + 1,
@@ -152,7 +159,7 @@ export default function ResumeBuilderPage() {
   const hasOptionalContent =
     state.resume.languages.length > 0 || state.resume.interests.length > 0
 
-  const stepProps: BuilderStepProps = { state, updateState }
+  const stepProps: BuilderStepProps = { ai, state, updateState }
   const stepContent = (() => {
     switch (state.currentStep) {
       case 0:
@@ -277,6 +284,7 @@ export default function ResumeBuilderPage() {
         open={showStartOver}
         title="Start over from step one?"
       />
+      <AiConsentDialog ai={ai} />
     </div>
   )
 }

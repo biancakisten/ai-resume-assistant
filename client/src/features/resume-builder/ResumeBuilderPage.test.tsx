@@ -20,6 +20,7 @@ import { EmploymentStep } from './steps/EmploymentStep'
 import { EducationStep } from './steps/EducationStep'
 import { LanguagesInterestsStep } from './steps/LanguagesInterestsStep'
 import { PersonalStep } from './steps/PersonalStep'
+import { OverviewStep } from './steps/OverviewStep'
 import { SkillsTrainingStep } from './steps/SkillsTrainingStep'
 import ResumeBuilderPage from './pages/ResumeBuilderPage'
 import {
@@ -32,10 +33,13 @@ import type {
   ResumeBuilderState,
 } from './types'
 import { useState, type ReactNode } from 'react'
+import { useResumeAiAssistance } from './ai/useResumeAiAssistance'
+import { AiConsentDialog } from './ai/AiConsentDialog'
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 beforeEach(() => {
@@ -61,7 +65,17 @@ function StateHarness({
   children: (props: BuilderStepProps) => ReactNode
 }) {
   const [state, setState] = useState(initialState)
-  return children({ state, updateState: (updater) => setState(updater) })
+  const ai = useResumeAiAssistance()
+  return (
+    <>
+      {children({
+        ai,
+        state,
+        updateState: (updater) => setState(updater),
+      })}
+      <AiConsentDialog ai={ai} />
+    </>
+  )
 }
 
 function fillPersonalDetails() {
@@ -502,5 +516,500 @@ describe('skills, languages, and photographs', () => {
 
     expect(screen.getByText('portrait.png')).toBeTruthy()
     expect(URL.createObjectURL).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('controlled AI assistance', () => {
+  it('shows AI controls only for the approved resume fields', () => {
+    const personalView = render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <PersonalStep {...props} />}
+      </StateHarness>,
+    )
+    expect(screen.queryByText('Improve with AI')).toBeNull()
+    personalView.unmount()
+
+    const skillsView = render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <SkillsTrainingStep {...props} />}
+      </StateHarness>,
+    )
+    expect(screen.queryByText('Improve with AI')).toBeNull()
+    skillsView.unmount()
+
+    const languagesView = render(
+      <StateHarness initialState={createInitialBuilderState()}>
+        {(props) => <LanguagesInterestsStep {...props} />}
+      </StateHarness>,
+    )
+    expect(screen.queryByText('Improve with AI')).toBeNull()
+    languagesView.unmount()
+
+    const overviewState = createInitialBuilderState()
+    overviewState.resume.professionalOverview = 'Original overview'
+    const overviewView = render(
+      <StateHarness initialState={overviewState}>
+        {(props) => <OverviewStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    ).toBeTruthy()
+    overviewView.unmount()
+
+    const employmentState = createInitialBuilderState()
+    employmentState.resume.employmentHistory = [createEmploymentEntry()]
+    employmentState.ids.employment = ['employment-ai']
+    const employmentView = render(
+      <StateHarness initialState={employmentState}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'Improve role 1 responsibilities with AI',
+      }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', {
+        name: 'Improve role 1 achievements with AI',
+      }),
+    ).toBeTruthy()
+    employmentView.unmount()
+
+    const educationState = createInitialBuilderState()
+    educationState.resume.education = [createEducationEntry()]
+    educationState.ids.education = ['education-ai']
+    render(
+      <StateHarness initialState={educationState}>
+        {(props) => <EducationStep {...props} />}
+      </StateHarness>,
+    )
+    expect(
+      screen.getByRole('button', {
+        name: 'Improve education 1 achievements with AI',
+      }),
+    ).toBeTruthy()
+  })
+
+  it('requires session consent and sends only the selected field contract', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          suggestion: 'I build accessible software for diverse users.',
+          warnings: [],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, {
+      target: { value: 'I build software that is accessible.' },
+    })
+    fireEvent.change(
+      screen.getByLabelText('Improvement style for professional overview'),
+      { target: { value: 'concise' } },
+    )
+
+    const improve = screen.getByRole('button', {
+      name: 'Improve professional overview with AI',
+    })
+    improve.focus()
+    fireEvent.click(improve)
+    expect(
+      screen.getByRole('heading', {
+        name: 'Share selected text with the AI service?',
+      }),
+    ).toBeTruthy()
+    expect(screen.getByText('The complete CV will not be sent automatically.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(improve)
+
+    fireEvent.click(improve)
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string)).toEqual({
+      fieldType: 'professionalOverview',
+      style: 'concise',
+      text: 'I build software that is accessible.',
+    })
+    expect(fetchMock.mock.calls[0][1].body).not.toContain('personalDetails')
+    expect(await screen.findByText('AI suggestion')).toBeTruthy()
+  })
+
+  it('uses consent once per page session and retries a network failure', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError('Network unavailable'))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            suggestion: 'A concise accessible-software overview.',
+            warnings: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, {
+      target: { value: 'I build accessible software products.' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+
+    expect(
+      await screen.findByText(
+        'The AI request could not be completed. Check your connection and try again.',
+      ),
+    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(await screen.findByText('A concise accessible-software overview.')).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('announces and focuses the comparison, while Reject preserves the original', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            suggestion: 'Clearer overview.',
+            warnings: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, { target: { value: 'Original overview.' } })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+
+    const announcement = await screen.findByText(
+      'AI suggestion ready for review.',
+    )
+    expect(announcement.textContent).toContain('AI suggestion ready for review')
+    expect(screen.getAllByText('Original overview.').length).toBeGreaterThan(1)
+    expect(screen.getByText('Clearer overview.')).toBeTruthy()
+    expect(document.activeElement).toBe(announcement.parentElement)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reject suggestion' }))
+    expect((overview as HTMLTextAreaElement).value).toBe('Original overview.')
+    expect(screen.queryByText('Clearer overview.')).toBeNull()
+  })
+
+  it('accepts, edits, and undoes a suggestion using the exact original text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            suggestion: 'Polished overview.',
+            warnings: ['Confirm that the wording still reflects your experience.'],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, { target: { value: 'Exact original overview.' } })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    await screen.findByText('Polished overview.')
+    expect(
+      screen.getByText('Confirm that the wording still reflects your experience.'),
+    ).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Accept suggestion' }))
+    expect((overview as HTMLTextAreaElement).value).toBe('Polished overview.')
+    fireEvent.change(overview, { target: { value: 'Edited accepted suggestion.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Undo AI suggestion' }))
+
+    expect((overview as HTMLTextAreaElement).value).toBe(
+      'Exact original overview.',
+    )
+  })
+
+  it('cancels an in-flight request without changing the original text', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_url, options: RequestInit) => {
+        return new Promise((_resolve, reject) => {
+          options.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError')),
+          )
+        })
+      }),
+    )
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, { target: { value: 'Original stays here.' } })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    expect(
+      await screen.findByText('Improving only this field…'),
+    ).toBeTruthy()
+    expect((overview as HTMLTextAreaElement).disabled).toBe(false)
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Cancel AI request' }),
+    )
+
+    expect(
+      await screen.findByText(
+        'AI improvement cancelled. Your text was not changed.',
+      ),
+    ).toBeTruthy()
+    expect((overview as HTMLTextAreaElement).value).toBe('Original stays here.')
+  })
+
+  it('ignores a stale response after leaving the step', async () => {
+    let resolveRequest!: (response: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+          }),
+      ),
+    )
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    const overview = screen.getByLabelText('Professional overview')
+    fireEvent.change(overview, { target: { value: 'Original overview.' } })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    await screen.findByText('Improving only this field…')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    resolveRequest(
+      new Response(
+        JSON.stringify({ suggestion: 'Stale suggestion.', warnings: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    await waitFor(() =>
+      expect(screen.queryByText('Stale suggestion.')).toBeNull(),
+    )
+    expect(
+      (screen.getByLabelText('Professional overview') as HTMLTextAreaElement)
+        .value,
+    ).toBe('Original overview.')
+  })
+
+  it('accepts a suggestion into only the selected repeatable entry', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            suggestion: 'Improved second responsibility.',
+            warnings: [],
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    const state = createInitialBuilderState()
+    const first = createEmploymentEntry()
+    const second = createEmploymentEntry()
+    first.description = 'First responsibility.'
+    second.description = 'Second responsibility.'
+    state.resume.employmentHistory = [first, second]
+    state.ids.employment = ['stable-first', 'stable-second']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve role 2 responsibilities with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Accept suggestion' }),
+    )
+
+    const responsibilities = screen.getAllByLabelText(/Responsibilities/)
+    expect((responsibilities[0] as HTMLTextAreaElement).value).toBe(
+      'First responsibility.',
+    )
+    expect((responsibilities[1] as HTMLTextAreaElement).value).toBe(
+      'Improved second responsibility.',
+    )
+  })
+
+  it('cannot apply a delayed response to another entry after deletion', async () => {
+    let resolveRequest!: (response: Response) => void
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveRequest = resolve
+          }),
+      ),
+    )
+    const state = createInitialBuilderState()
+    const first = createEmploymentEntry()
+    const second = createEmploymentEntry()
+    first.description = 'First responsibility.'
+    second.description = 'Second responsibility.'
+    state.resume.employmentHistory = [first, second]
+    state.ids.employment = ['stable-first', 'stable-second']
+    render(
+      <StateHarness initialState={state}>
+        {(props) => <EmploymentStep {...props} />}
+      </StateHarness>,
+    )
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve role 1 responsibilities with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    await screen.findByText('Improving only this field…')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0])
+    fireEvent.click(screen.getByRole('button', { name: 'Remove role' }))
+
+    resolveRequest(
+      new Response(
+        JSON.stringify({ suggestion: 'Wrong-entry suggestion.', warnings: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    await waitFor(() =>
+      expect(screen.queryByText('Wrong-entry suggestion.')).toBeNull(),
+    )
+    const remaining = screen.getAllByLabelText(/Responsibilities/)
+    expect(remaining).toHaveLength(1)
+    expect((remaining[0] as HTMLTextAreaElement).value).toBe(
+      'Second responsibility.',
+    )
+  })
+
+  it('clears comparison and undo state when leaving the step', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ suggestion: 'Accepted overview.', warnings: [] }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.change(screen.getByLabelText('Professional overview'), {
+      target: { value: 'Original overview.' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Accept suggestion' }),
+    )
+    expect(screen.getByRole('button', { name: 'Undo AI suggestion' })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+
+    expect(screen.queryByRole('button', { name: 'Undo AI suggestion' })).toBeNull()
+  })
+
+  it('resets consent and all AI state when Start Over is confirmed', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ suggestion: 'Suggested overview.', warnings: [] }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ResumeBuilderPage />)
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.change(screen.getByLabelText('Professional overview'), {
+      target: { value: 'Overview before reset.' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
+    await screen.findByText('Suggested overview.')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Start Over' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
+    fillPersonalDetails()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.change(screen.getByLabelText('Professional overview'), {
+      target: { value: 'Overview after reset.' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    )
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'Share selected text with the AI service?',
+      }),
+    ).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 })

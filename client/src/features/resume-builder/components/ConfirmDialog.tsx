@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 
 interface ConfirmDialogProps {
   open: boolean
   title: string
-  description: string
+  description?: string
+  children?: ReactNode
   confirmLabel: string
   onConfirm: () => void
   onCancel: () => void
@@ -14,6 +15,7 @@ export function ConfirmDialog({
   open,
   title,
   description,
+  children,
   confirmLabel,
   onConfirm,
   onCancel,
@@ -106,9 +108,12 @@ export function ConfirmDialog({
         <h2 className="text-xl font-bold text-slate-950" id="confirm-dialog-title">
           {title}
         </h2>
-        <p className="mt-2 text-sm leading-6 text-slate-600" id="confirm-dialog-description">
-          {description}
-        </p>
+        <div
+          className="mt-2 text-sm leading-6 text-slate-600"
+          id="confirm-dialog-description"
+        >
+          {children ?? <p>{description}</p>}
+        </div>
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <button
             className="min-h-11 rounded-lg border border-slate-300 px-4 font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
