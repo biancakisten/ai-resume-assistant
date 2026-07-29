@@ -6,6 +6,7 @@ export const minimalValidResume: ResumeData = {
   personalDetails: {
     firstName: 'Lerato',
     lastName: 'Mokoena',
+    professionalTitle: 'Junior Software Developer',
     email: 'lerato.mokoena@example.com',
     phone: '+27 71 555 0142',
     city: 'Johannesburg',
@@ -19,6 +20,7 @@ export const completeSampleResume: ResumeData = {
   personalDetails: {
     firstName: 'Thandi',
     lastName: 'Ndlovu',
+    professionalTitle: 'Frontend Engineer',
     email: 'thandi.ndlovu@example.com',
     phone: '+27 82 555 0198',
     city: 'Cape Town',

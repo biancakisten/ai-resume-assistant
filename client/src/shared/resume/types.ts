@@ -35,6 +35,7 @@ export interface MonthYear {
 export interface PersonalDetails {
   firstName: string
   lastName: string
+  professionalTitle: string
   email: string
   phone: string
   city: string

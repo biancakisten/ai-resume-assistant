@@ -234,6 +234,11 @@ function validatePersonalDetails(
   if (details === null) return
   requireString(details.firstName, `${path}.firstName`, errors)
   requireString(details.lastName, `${path}.lastName`, errors)
+  requireString(
+    details.professionalTitle,
+    `${path}.professionalTitle`,
+    errors,
+  )
   const email = requireString(details.email, `${path}.email`, errors)
   if (email !== null && !EMAIL_PATTERN.test(email.trim())) {
     addError(
