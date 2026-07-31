@@ -3,7 +3,10 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { AiConsentDialog } from '../ai/AiConsentDialog'
 import { useResumeAiAssistance } from '../ai/useResumeAiAssistance'
 import { ProgressNav } from '../components/ProgressNav'
-import { ResumePreview } from '../components/ResumePreview'
+import {
+  ResumePreview,
+  type ShortenSelection,
+} from '../components/ResumePreview'
 import { EducationStep } from '../steps/EducationStep'
 import { EmploymentStep } from '../steps/EmploymentStep'
 import { LanguagesInterestsStep } from '../steps/LanguagesInterestsStep'
@@ -156,6 +159,57 @@ export default function ResumeBuilderPage() {
     window.setTimeout(() => formHeadingRef.current?.focus(), 0)
   }
 
+  const applyShortening = useCallback(
+    (selection: ShortenSelection, value: string) => {
+      setState((current) => {
+        const { candidate, stableId } = selection
+        if (candidate.kind === 'professionalOverview') {
+          return {
+            ...current,
+            dirty: true,
+            resume: { ...current.resume, professionalOverview: value },
+          }
+        }
+
+        if (candidate.kind === 'educationAchievements') {
+          const index = current.ids.education.indexOf(stableId)
+          if (index < 0) return current
+          return {
+            ...current,
+            dirty: true,
+            resume: {
+              ...current.resume,
+              education: current.resume.education.map((entry, entryIndex) =>
+                entryIndex === index
+                  ? { ...entry, description: value }
+                  : entry,
+              ),
+            },
+          }
+        }
+
+        const index = current.ids.employment.indexOf(stableId)
+        if (index < 0) return current
+        return {
+          ...current,
+          dirty: true,
+          resume: {
+            ...current.resume,
+            employmentHistory: current.resume.employmentHistory.map(
+              (entry, entryIndex) => {
+                if (entryIndex !== index) return entry
+                return candidate.kind === 'employmentResponsibilities'
+                  ? { ...entry, description: value }
+                  : { ...entry, achievements: value }
+              },
+            ),
+          },
+        }
+      })
+    },
+    [],
+  )
+
   const hasOptionalContent =
     state.resume.languages.length > 0 || state.resume.interests.length > 0
 
@@ -237,7 +291,12 @@ export default function ResumeBuilderPage() {
           >
             {stepContent}
           </section>
-          <ResumePreview resume={state.resume} />
+          <ResumePreview
+            ai={ai}
+            ids={state.ids}
+            onApplyShortening={applyShortening}
+            resume={state.resume}
+          />
         </div>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
           <div>

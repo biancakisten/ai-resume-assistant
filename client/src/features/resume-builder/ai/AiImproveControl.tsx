@@ -12,24 +12,34 @@ const STYLE_LABELS: Record<AiImprovementStyle, string> = {
   'achievement-focused': 'Achievement-focused',
 }
 
+function isImprovementStyle(value: string): value is AiImprovementStyle {
+  return AI_IMPROVEMENT_STYLES.some((style) => style === value)
+}
+
 interface AiImproveControlProps {
+  actionLabel?: string
   ai: ResumeAiController
   fieldKey: string
   fieldType: AiFieldType
+  fixedStyle?: AiImprovementStyle
   label: string
   text: string
   onChange: (value: string) => void
 }
 
 export function AiImproveControl({
+  actionLabel,
   ai,
   fieldKey,
   fieldType,
+  fixedStyle,
   label,
   text,
   onChange,
 }: AiImproveControlProps) {
-  const [style, setStyle] = useState<AiImprovementStyle>('professional')
+  const [style, setStyle] = useState<AiImprovementStyle>(
+    fixedStyle ?? 'professional',
+  )
   const session = ai.fields[fieldKey]
   const loading = session?.status === 'loading'
   const suggestionRef = useRef<HTMLDivElement>(null)
@@ -41,29 +51,43 @@ export function AiImproveControl({
   }, [session?.status])
 
   const requestImprovement = () => {
-    ai.request({ fieldKey, fieldType, style, text })
+    ai.request({
+      fieldKey,
+      fieldType,
+      style: fixedStyle ?? style,
+      text,
+    })
   }
 
   return (
     <div className="rounded-xl border border-purple-200 bg-purple-50/60 p-4">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-48 flex-1 text-sm font-semibold text-purple-950">
-          Improvement style for {label}
-          <select
-            className="mt-1.5 min-h-11 w-full rounded-lg border border-purple-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
-            disabled={loading}
-            onChange={(event) =>
-              setStyle(event.target.value as AiImprovementStyle)
-            }
-            value={style}
-          >
-            {AI_IMPROVEMENT_STYLES.map((option) => (
-              <option key={option} value={option}>
-                {STYLE_LABELS[option]}
-              </option>
-            ))}
-          </select>
-        </label>
+        {fixedStyle ? (
+          <p className="min-w-48 flex-1 text-sm font-semibold text-purple-950">
+            Request a {STYLE_LABELS[fixedStyle].toLowerCase()} version of{' '}
+            {label}. You will review it before anything changes.
+          </p>
+        ) : (
+          <label className="min-w-48 flex-1 text-sm font-semibold text-purple-950">
+            Improvement style for {label}
+            <select
+              className="mt-1.5 min-h-11 w-full rounded-lg border border-purple-200 bg-white px-3 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              disabled={loading}
+              onChange={(event) => {
+                if (isImprovementStyle(event.target.value)) {
+                  setStyle(event.target.value)
+                }
+              }}
+              value={style}
+            >
+              {AI_IMPROVEMENT_STYLES.map((option) => (
+                <option key={option} value={option}>
+                  {STYLE_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {loading ? (
           <button
             className="min-h-11 rounded-lg border border-purple-300 bg-white px-4 text-sm font-bold text-purple-900 focus:outline-none focus:ring-2 focus:ring-purple-400"
@@ -74,13 +98,13 @@ export function AiImproveControl({
           </button>
         ) : (
           <button
-            aria-label={`Improve ${label} with AI`}
+            aria-label={actionLabel ?? `Improve ${label} with AI`}
             className="min-h-11 rounded-lg bg-purple-700 px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:bg-slate-300 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2"
             disabled={text.trim() === ''}
             onClick={requestImprovement}
             type="button"
           >
-            Improve with AI
+            {actionLabel ?? 'Improve with AI'}
           </button>
         )}
       </div>
