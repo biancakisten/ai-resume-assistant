@@ -23,7 +23,10 @@ describe('CvTemplate', () => {
     render(<CvTemplate resume={completeSampleResume} />)
 
     const template = screen.getByTestId('cv-template')
-    expect(template.classList.contains('cv-template-page')).toBe(true)
+    expect(template.classList.contains('cv-template-document')).toBe(true)
+    const pages = screen.getAllByTestId('cv-template-page')
+    expect(pages).toHaveLength(1)
+    expect(pages[0].classList.contains('cv-template-page')).toBe(true)
     expect(
       within(template)
         .getByRole('complementary')

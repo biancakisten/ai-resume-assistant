@@ -22,12 +22,17 @@
   src: url('../assets/roboto-bold.ttf') format('truetype');
 }
 
-.cv-template-page {
+.cv-template-document {
   --cv-navy: #1f2a44;
   --cv-accent: #4fa1d1;
   --cv-ink: #0f0f12;
   --cv-copy: #40454d;
   --cv-sidebar-copy: #ebf0f7;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.cv-template-page {
   aspect-ratio: 210 / 297;
   background: #fff;
   box-sizing: border-box;
@@ -36,13 +41,13 @@
   display: grid;
   font-family: 'Roboto', Arial, sans-serif;
   grid-template-columns: 34.68% 65.32%;
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
 }
 
-.cv-template-page *,
-.cv-template-page *::before,
-.cv-template-page *::after {
+.cv-template-document *,
+.cv-template-document *::before,
+.cv-template-document *::after {
   box-sizing: border-box;
 }
 
@@ -84,7 +89,8 @@
   width: 100%;
 }
 
-.cv-identity h1 {
+.cv-identity h1,
+.cv-identity__continued-name {
   color: #fff;
   font-size: 3.39cqw;
   font-weight: 700;
@@ -93,13 +99,31 @@
   overflow-wrap: anywhere;
 }
 
-.cv-identity p {
+.cv-identity__title {
   color: var(--cv-accent);
   font-size: 1.94cqw;
   font-weight: 700;
   line-height: 1.2;
   margin: 1cqw 0 0;
   overflow-wrap: anywhere;
+}
+
+.cv-identity--continued {
+  align-items: flex-start;
+  text-align: left;
+}
+
+.cv-identity--continued .cv-identity__continued-name {
+  margin-top: 0;
+}
+
+.cv-continuation-label {
+  color: var(--cv-sidebar-copy);
+  font-size: 1.35cqw;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  margin-top: 1cqw;
+  text-transform: uppercase;
 }
 
 .cv-sidebar-section {
@@ -163,10 +187,15 @@
 .cv-sidebar-list li {
   display: grid;
   grid-template-columns: 1.3cqw minmax(0, 1fr);
+  overflow-wrap: anywhere;
 }
 
 .cv-sidebar-list li::before {
   content: '○';
+}
+
+.cv-sidebar-list li.cv-sidebar-list__continuation::before {
+  content: '';
 }
 
 .cv-template-main {
@@ -197,6 +226,7 @@
   font-size: 1.61cqw;
   font-weight: 700;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .cv-entry-list {
@@ -225,12 +255,14 @@
   font-weight: 700;
   line-height: 1.25;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .cv-entry__organisation,
 .cv-entry__date,
 .cv-entry__description {
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .cv-entry__organisation {
@@ -256,6 +288,7 @@
 .cv-entry__details li {
   display: grid;
   grid-template-columns: 1.1cqw minmax(0, 1fr);
+  overflow-wrap: anywhere;
 }
 
 .cv-entry__details li::before {
@@ -264,6 +297,13 @@
 
 .cv-entry__description {
   margin-top: 1.2cqw;
+}
+
+.cv-main-continuation-note {
+  color: var(--cv-copy);
+  font-size: 1.45cqw;
+  font-weight: 500;
+  margin: 0;
 }
 
 .resume-preview {
@@ -287,10 +327,62 @@
   margin: 0 0 1rem;
 }
 
+.resume-preview__warning {
+  border: 1px solid;
+  border-radius: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+}
+
+.resume-preview__warning p,
+.resume-preview__shorten p {
+  margin: 0;
+}
+
+.resume-preview__warning--fit {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+.resume-preview__warning--empty {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
+.resume-preview__warning--overflow {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.resume-preview__shorten {
+  background: #faf5ff;
+  border: 1px solid #e9d5ff;
+  border-radius: 0.75rem;
+  color: #3b0764;
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.resume-preview__shorten h2 {
+  font-size: 1rem;
+  margin: 0;
+}
+
 .resume-preview__page {
-  box-shadow: 0 12px 28px rgb(15 23 42 / 16%);
   margin: 0 auto;
   max-width: 210mm;
+}
+
+.resume-preview__page .cv-template-page {
+  box-shadow: 0 12px 28px rgb(15 23 42 / 16%);
 }
 
 .resume-preview__viewport {
@@ -352,12 +444,36 @@
     display: none;
   }
 
+  .resume-preview__warning,
+  .resume-preview__shorten {
+    display: none;
+  }
+
   .resume-preview__page {
-    box-shadow: none;
-    height: 297mm;
+    height: auto;
     max-width: none;
     min-width: 0;
     width: 210mm;
+  }
+
+  .cv-template-document {
+    gap: 0;
+  }
+
+  .cv-template-page {
+    break-after: page;
+    height: 297mm;
+    page-break-after: always;
+    width: 210mm;
+  }
+
+  .cv-template-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .resume-preview__page .cv-template-page {
+    box-shadow: none;
   }
 
   .resume-preview__viewport {
