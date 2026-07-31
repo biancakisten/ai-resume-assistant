@@ -149,12 +149,9 @@ function hasEducationContent(entry: EducationEntry): boolean {
 }
 
 function hasTrainingContent(entry: TrainingCertificateEntry): boolean {
-  return [
-    entry.name,
-    entry.issuingOrganisation,
-    entry.credentialId,
-    entry.credentialUrl,
-  ].some((value) => value.trim())
+  return [entry.name, entry.issuingOrganisation, entry.credentialId].some(
+    (value) => value.trim(),
+  )
 }
 
 function keysByContent<T>(entries: T[]): string[] {
@@ -254,7 +251,7 @@ function CvTrainingEntry({ entry }: { entry: TrainingCertificateEntry }) {
     <article className="cv-entry cv-entry--compact">
       <div className="cv-entry__heading">
         <div>
-          <h3>{entry.name}</h3>
+          {entry.name.trim() && <h3>{entry.name}</h3>}
           {metadata && <p className="cv-entry__organisation">{metadata}</p>}
         </div>
         {date && <p className="cv-entry__date">{date}</p>}
@@ -415,7 +412,7 @@ export function CvTemplate({ resume }: { resume: ResumeData }) {
         )}
       </aside>
 
-      <main className="cv-template-main">
+      <div className="cv-template-main">
         {resume.professionalOverview.trim() && (
           <CvMainSection title="Professional overview">
             <p className="cv-overview">{resume.professionalOverview}</p>
@@ -460,7 +457,7 @@ export function CvTemplate({ resume }: { resume: ResumeData }) {
             </div>
           </CvMainSection>
         )}
-      </main>
+      </div>
     </article>
   )
 }

@@ -29,9 +29,9 @@ describe('CvTemplate', () => {
         .getByRole('complementary')
         .classList.contains('cv-template-sidebar'),
     ).toBe(true)
-    expect(
-      within(template).getByRole('main').classList.contains('cv-template-main'),
-    ).toBe(true)
+    const mainContent = template.querySelector('.cv-template-main')
+    expect(mainContent?.tagName).toBe('DIV')
+    expect(within(template).queryByRole('main')).toBeNull()
     expect(
       within(template).getByRole('heading', {
         name: 'Professional overview',
@@ -264,6 +264,28 @@ describe('CvTemplate', () => {
     expect(screen.queryByText('Institution')).toBeNull()
   })
 
+  it('omits training entries that contain only a non-displayed credential URL', () => {
+    const resume = {
+      ...createEmptyResumeData(),
+      trainingAndCertificates: [
+        {
+          name: '',
+          issuingOrganisation: '',
+          completionDate: null,
+          inProgress: false,
+          credentialId: '',
+          credentialUrl: 'https://credentials.example.com/hidden-only',
+        },
+      ],
+    }
+    const { container } = render(<CvTemplate resume={resume} />)
+
+    expect(
+      screen.queryByRole('heading', { name: 'Additional training' }),
+    ).toBeNull()
+    expect(container.querySelector('.cv-entry h3:empty')).toBeNull()
+  })
+
   it('renders user-provided markup as text and filters empty list items', () => {
     const unsafeText = '<img src=x onerror="window.hacked=true">'
     const resume = {
@@ -278,7 +300,7 @@ describe('CvTemplate', () => {
     const { container } = render(<CvTemplate resume={resume} />)
 
     expect(screen.getAllByText(unsafeText)).toHaveLength(2)
-    expect(container.querySelector('main img')).toBeNull()
+    expect(container.querySelector('.cv-template-main img')).toBeNull()
     expect(container.querySelectorAll('.cv-sidebar-list li:empty')).toHaveLength(
       0,
     )
