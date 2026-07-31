@@ -206,7 +206,7 @@ export default function ResumeBuilderPage() {
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-[100rem] px-4 py-8 sm:px-6 lg:px-8">
         <ProgressNav
           completedSteps={state.completedSteps}
           currentStep={state.currentStep}
@@ -230,7 +230,7 @@ export default function ResumeBuilderPage() {
             {activeStep.description}
           </p>
         </div>
-        <div className="mt-9 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <div className="mt-9 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(34rem,48rem)]">
           <section
             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8"
             key={`${state.sessionId}-${state.currentStep}`}
