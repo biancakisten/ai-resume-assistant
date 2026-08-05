@@ -8,6 +8,7 @@ import {
   type ShortenCandidate,
 } from '../../resume-template'
 import type { RepeatableUiIds } from '../types'
+import { ResumePdfDownload } from './ResumePdfDownload'
 
 export interface ShortenSelection {
   candidate: ShortenCandidate
@@ -85,6 +86,7 @@ export function ResumePreview({
           />
         </div>
       )}
+      <ResumePdfDownload pagination={pagination} resume={resume} />
       <div
         aria-label="Scrollable A4 resume preview"
         className="resume-preview__viewport"
