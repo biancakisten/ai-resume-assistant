@@ -376,6 +376,67 @@
   margin: 0;
 }
 
+.resume-preview__pdf {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 0.75rem;
+  color: #1e3a8a;
+  display: grid;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+}
+
+.resume-preview__pdf h2,
+.resume-preview__pdf p,
+.resume-preview__pdf-status {
+  margin: 0;
+}
+
+.resume-preview__pdf h2 {
+  font-size: 1rem;
+}
+
+.resume-preview__pdf p,
+.resume-preview__pdf-status {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.resume-preview__pdf-button,
+.resume-preview__pdf-download {
+  align-items: center;
+  align-self: start;
+  background: #1d4ed8;
+  border: 0;
+  border-radius: 0.5rem;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-weight: 700;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0.6rem 1rem;
+  text-decoration: none;
+  width: fit-content;
+}
+
+.resume-preview__pdf-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.resume-preview__pdf-button:focus-visible,
+.resume-preview__pdf-download:focus-visible {
+  outline: 3px solid #7e22ce;
+  outline-offset: 2px;
+}
+
+.resume-preview__pdf-status:empty {
+  display: none;
+}
+
 .resume-preview__page {
   margin: 0 auto;
   max-width: 210mm;
@@ -445,7 +506,8 @@
   }
 
   .resume-preview__warning,
-  .resume-preview__shorten {
+  .resume-preview__shorten,
+  .resume-preview__pdf {
     display: none;
   }
 

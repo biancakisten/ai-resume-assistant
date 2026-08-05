@@ -1,0 +1,4 @@
+export const PDF_A4_WIDTH = 595.28
+export const PDF_A4_HEIGHT = 841.89
+export const PDF_SIDEBAR_WIDTH = 206.42
+export const PDF_MAIN_WIDTH = PDF_A4_WIDTH - PDF_SIDEBAR_WIDTH
