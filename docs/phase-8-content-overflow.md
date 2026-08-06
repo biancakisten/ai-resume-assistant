@@ -21,11 +21,14 @@ or implement Phase 9 functionality.
   multiple pages.
 
 The function does not inspect the DOM, viewport size, browser font metrics, or
-device pixel ratio. It uses separate conservative capacity estimates for the
-main column (84 cost units at an estimated 72 characters per line) and sidebar
-(70 cost units at an estimated 30 characters per line). Heading, entry-header,
-paragraph and list spacing add explicit costs. These values are calibrated to
-the fixed Roboto typography, page padding, gaps and column widths from Phase 7.
+device pixel ratio. It uses separate calibrated capacity estimates for the
+main column (76 cost units at an estimated 62 characters per line) and sidebar
+(70 cost units at an estimated 19 characters per line). Heading, entry-header,
+paragraph and list spacing add explicit costs. Compact entries are charged for
+their actual visible lines and spacing rather than a generic multi-line block,
+which prevents short education and training entries from creating a sparse
+trailing page. These values are calibrated to the fixed Roboto typography,
+page padding, gaps and column widths.
 Any change to those CSS properties requires a matching pagination-model update
 and dense preview/print verification. This estimate is deterministic, not a
 claim of pixel-perfect browser line measurement.
@@ -33,6 +36,8 @@ claim of pixel-perfect browser line measurement.
 Each rendered page retains:
 
 - `210mm × 297mm` A4 geometry;
+- a full-bleed navy sidebar at the top, left and bottom A4 edges;
+- independent internal padding for sidebar content and the white main column;
 - the 34.68% navy sidebar and 65.32% main column;
 - the Phase 7 Roboto font files;
 - navy `#1f2a44` and blue `#4fa1d1`;
@@ -52,7 +57,9 @@ The paginator applies these rules in order:
    entry fits in the remaining page capacity.
 4. An entry that does not fit moves to the next page when that page has room.
 5. Unusually long employment content splits between responsibility or
-   achievement bullets.
+   achievement bullets. A long entry may also continue on the next page when
+   safe bullet fragments can use meaningful space that would otherwise remain
+   blank.
 6. A single oversized bullet or education description splits at sentence
    boundaries. The sentence scanner recognises whitespace-delimited `.`, `!`
    and `?`, avoids common abbreviations and does not treat punctuation inside a
@@ -65,7 +72,9 @@ The paginator applies these rules in order:
 9. Sidebar sections split between visible items. An exceptionally long contact
    or list value is split into labelled continuation fragments as a final
    fallback.
-10. Empty sections, headings without content, empty fragments and blank trailing
+10. Available space is filled in stored order, allowing a following education
+    or training entry onto the current page when the complete entry fits.
+11. Empty sections, headings without content, empty fragments and blank trailing
     pages are never emitted.
 
 The resulting pages remain in stored ResumeData order. Source objects are never
@@ -137,7 +146,7 @@ comparison controls.
 
 ## Known limitations
 
-- Pagination uses conservative deterministic estimates rather than live font
+- Pagination uses deterministic estimates rather than live font
   measurement. An unusual browser font-rendering difference may leave more
   whitespace than another browser.
 - Phase 8 does not promise a particular maximum page count. It preserves all
@@ -145,10 +154,13 @@ comparison controls.
 - “Shorten to fit” proposes one supported field at a time. Accepting one
   suggestion may reduce the page count, but the user may need to repeat the
   action or edit other fields.
-- Estimated capacity intentionally leaves conservative whitespace. Browser font
-  loading and sub-pixel rounding can change where glyphs wrap, so dense pages
-  must still be reviewed. Long unbroken values use `overflow-wrap: anywhere`
-  and bounded page-model fragments rather than clipping.
+- Browser font loading and sub-pixel rounding can change where glyphs wrap, so
+  dense pages must still be reviewed. The full Naledi Mkhize regression fixture
+  verifies that its former four-page result becomes three ordered pages, uses
+  available space on the first two pages, and avoids clipping or a nearly empty
+  tail. Long unbroken values use
+  `overflow-wrap: anywhere` and bounded page-model fragments rather than
+  clipping.
 - Pathological single-token values can be continued at Unicode code-point
   boundaries. This preserves the data but may create a visually awkward break.
 - Page numbers are exposed through accessible page labels; decorative printed

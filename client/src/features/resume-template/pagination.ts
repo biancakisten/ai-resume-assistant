@@ -14,11 +14,13 @@ import type {
  * here and verified against dense browser and print previews.
  */
 export const PAGINATION_MODEL = Object.freeze({
-  mainCharactersPerLine: 72,
-  mainPageCapacity: 84,
-  sidebarCharactersPerLine: 30,
+  mainCharactersPerLine: 62,
+  mainPageCapacity: 76,
+  sidebarCharactersPerLine: 19,
   sidebarPageCapacity: 70,
 })
+
+const MAIN_SECTION_HEADING_COST = 4
 
 type SidebarTextKind =
   | 'strengths'
@@ -325,7 +327,7 @@ function hasTrainingContent(entry: TrainingCertificateEntry): boolean {
 
 function employmentHeaderCost(entry: EmploymentEntry): number {
   return (
-    3 +
+    1 +
     mainTextCost(entry.jobTitle) +
     mainTextCost(
       [
@@ -343,7 +345,7 @@ function buildEmploymentFragments(
   const headerCost = employmentHeaderCost(entry)
   const maximumDetailCost = Math.max(
     8,
-    PAGINATION_MODEL.mainPageCapacity - 8 - headerCost,
+    PAGINATION_MODEL.mainPageCapacity - 6 - headerCost,
   )
   const details = textItems(entry.description, entry.achievements).flatMap(
     (detail) => splitAtSafeBoundaries(detail, maximumDetailCost),
@@ -389,10 +391,10 @@ function buildEmploymentFragments(
   }
 
   for (const detail of details) {
-    const detailCost = mainTextCost(detail) + 1
+    const detailCost = mainTextCost(detail)
     if (
       current.length > 0 &&
-      currentCost + detailCost > PAGINATION_MODEL.mainPageCapacity - 6
+      currentCost + detailCost > PAGINATION_MODEL.mainPageCapacity - 4
     ) {
       flush()
     }
@@ -408,7 +410,7 @@ function buildEducationFragments(
   entryIndex: number,
 ): CostedMainFragment[] {
   const headerCost =
-    3 +
+    1 +
     mainTextCost(entry.qualification) +
     mainTextCost(
       [
@@ -419,12 +421,12 @@ function buildEducationFragments(
   const descriptions = entry.description.trim()
     ? splitAtSafeBoundaries(
         entry.description.trim(),
-        Math.max(8, PAGINATION_MODEL.mainPageCapacity - 8 - headerCost),
+        Math.max(8, PAGINATION_MODEL.mainPageCapacity - 6 - headerCost),
       )
     : ['']
 
   return descriptions.map((description, index) => ({
-    cost: headerCost + (description ? mainTextCost(description) + 2 : 0),
+    cost: headerCost + (description ? mainTextCost(description) : 0) + 2,
     fragment: {
       key: `education-${entryIndex}-${index}`,
       kind: 'education',
@@ -468,7 +470,7 @@ function buildMainFragments(resume: ResumeData): CostedMainFragment[] {
     if (!hasTrainingContent(entry)) return
     fragments.push({
       cost:
-        3 +
+        1 +
         mainTextCost(entry.name) +
         mainTextCost(
           [entry.issuingOrganisation, entry.credentialId].filter(Boolean).join(' — '),
@@ -486,29 +488,88 @@ function buildMainFragments(resume: ResumeData): CostedMainFragment[] {
   return fragments
 }
 
+function splitEmploymentForAvailableSpace(
+  source: CostedMainFragment,
+  available: number,
+): [CostedMainFragment, CostedMainFragment] | null {
+  if (source.fragment.kind !== 'employment') return null
+  const { fragment } = source
+  if (fragment.details.length < 2) return null
+
+  const baseCost = employmentHeaderCost(fragment.entry) + 2
+  let headCost = baseCost
+  let splitIndex = 0
+  while (splitIndex < fragment.details.length - 1) {
+    const detailCost = mainTextCost(fragment.details[splitIndex])
+    if (headCost + detailCost > available) break
+    headCost += detailCost
+    splitIndex += 1
+  }
+  if (splitIndex === 0) return null
+
+  const headDetails = fragment.details.slice(0, splitIndex)
+  const tailDetails = fragment.details.slice(splitIndex)
+  const head: CostedMainFragment = {
+    ...source,
+    cost: headCost,
+    fragment: {
+      ...fragment,
+      details: headDetails,
+    },
+  }
+  const tail: CostedMainFragment = {
+    ...source,
+    cost:
+      baseCost + tailDetails.reduce(
+        (total, detail) => total + mainTextCost(detail),
+        0,
+      ),
+    fragment: {
+      ...fragment,
+      continued: true,
+      details: tailDetails,
+      key: `${fragment.key}-continued`,
+    },
+  }
+  return [head, tail]
+}
+
 function paginateMain(
   fragments: CostedMainFragment[],
 ): MainSectionSlice[][] {
   const pages: MainSectionSlice[][] = [[]]
   const pageCosts = [0]
+  const pending = [...fragments]
 
-  for (const source of fragments) {
+  while (pending.length > 0) {
+    let source = pending.shift()
+    if (!source) break
     let pageIndex = pages.length - 1
     let page = pages[pageIndex]
     let section: MainSectionSlice | undefined = page[page.length - 1]
     const startsSection = section?.kind !== source.sectionKind
-    const headingCost = startsSection ? 6 : 0
+    const headingCost = startsSection ? MAIN_SECTION_HEADING_COST : 0
 
     if (
       pageCosts[pageIndex] > 0 &&
       pageCosts[pageIndex] + headingCost + source.cost >
         PAGINATION_MODEL.mainPageCapacity
     ) {
-      pages.push([])
-      pageCosts.push(0)
-      pageIndex += 1
-      page = pages[pageIndex]
-      section = undefined
+      const available =
+        PAGINATION_MODEL.mainPageCapacity -
+        pageCosts[pageIndex] -
+        headingCost
+      const split = splitEmploymentForAvailableSpace(source, available)
+      if (split) {
+        source = split[0]
+        pending.unshift(split[1])
+      } else {
+        pages.push([])
+        pageCosts.push(0)
+        pageIndex += 1
+        page = pages[pageIndex]
+        section = undefined
+      }
     }
 
     const needsSection = section?.kind !== source.sectionKind
@@ -525,7 +586,7 @@ function paginateMain(
         title: source.sectionTitle,
       }
       page.push(section)
-      pageCosts[pageIndex] += 6
+      pageCosts[pageIndex] += MAIN_SECTION_HEADING_COST
     }
 
     if (!section) {

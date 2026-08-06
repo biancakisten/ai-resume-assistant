@@ -7,7 +7,23 @@ import {
   type ResumeData,
 } from '../../../shared/resume'
 import { paginateResume, type CvPageModel } from '../pagination'
+import { nalediMkhizeResume } from '../nalediResume.fixture'
+import {
+  CvPdfDocument,
+  type PdfLayoutDocument,
+} from './CvPdfDocument'
 import { generateResumePdf } from './generateResumePdf'
+import { registerPdfFonts } from './pdfFonts'
+import {
+  PDF_A4_HEIGHT,
+  PDF_A4_WIDTH,
+  PDF_MAIN_PADDING_BOTTOM,
+  PDF_MAIN_PADDING_TOP,
+  PDF_MAIN_WIDTH,
+  PDF_SIDEBAR_PADDING_HORIZONTAL,
+  PDF_SIDEBAR_PADDING_TOP,
+  PDF_SIDEBAR_WIDTH,
+} from './pdfGeometry'
 
 const JPEG_DATA_URL =
   'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAX/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIQAxAAAAEf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABAf/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPxB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxB//9k='
@@ -24,6 +40,7 @@ interface PdfInspection {
   links: string[]
   pageSizes: number[][]
   pageTexts: string[]
+  textRuns: Array<{ height: number; text: string }>
 }
 
 async function inspectPdf(blob: Blob): Promise<PdfInspection> {
@@ -35,10 +52,16 @@ async function inspectPdf(blob: Blob): Promise<PdfInspection> {
   const pageSizes: number[][] = []
   const pageTexts: string[] = []
   const links: string[] = []
+  const textRuns: Array<{ height: number; text: string }> = []
   for (let index = 1; index <= document.numPages; index += 1) {
     const page = await document.getPage(index)
     pageSizes.push(page.view)
     const content = await page.getTextContent()
+    content.items.forEach((item) => {
+      if ('str' in item && item.str.trim()) {
+        textRuns.push({ height: item.height, text: item.str })
+      }
+    })
     pageTexts.push(
       content.items
         .map((item) => ('str' in item ? item.str : ''))
@@ -55,7 +78,7 @@ async function inspectPdf(blob: Blob): Promise<PdfInspection> {
     }
   }
   await task.destroy()
-  return { links, pageSizes, pageTexts }
+  return { links, pageSizes, pageTexts, textRuns }
 }
 
 function withoutPhotograph(resume: ResumeData): ResumeData {
@@ -179,6 +202,11 @@ describe('production resume PDF', () => {
     })
     expect(inspection.pageTexts.join(' ')).toContain('Thandi Ndlovu')
     expect(inspection.pageTexts.join(' ')).toContain('PROFESSIONAL OVERVIEW')
+    expect(
+      inspection.textRuns.find((run) =>
+        run.text.includes('Product-minded software engineer'),
+      )?.height,
+    ).toBeGreaterThanOrEqual(8.5)
     expect(inspection.pageTexts.join(' ')).not.toMatch(
       /LIVE RESUME PREVIEW|Prepare PDF|Shorten to fit|Download PDF/,
     )
@@ -219,6 +247,93 @@ describe('production resume PDF', () => {
       pagination.pages.flatMap(uniquePageTokens),
     )
     expect(countMarkers(inspection.pageTexts)).toEqual(expectedMarkers)
+  }, 60_000)
+
+  it('uses full-bleed sidebars and preserves the full Naledi page model', async () => {
+    const resume = structuredClone(nalediMkhizeResume)
+    const pagination = paginateResume(resume)
+    const originalResume = structuredClone(resume)
+    const originalPagination = structuredClone(pagination)
+    const blob = await generateResumePdf({ fontSources, pagination, resume })
+    const inspection = await inspectPdf(blob)
+
+    expect(pagination.pages).toHaveLength(3)
+    expect(inspection.pageTexts).toHaveLength(pagination.pages.length)
+    pagination.pages.forEach((page, index) => {
+      const pageText = inspection.pageTexts[index].replace(/\s+/g, '')
+      let cursor = 0
+      uniquePageTokens(page).forEach((token) => {
+        const comparable = token.replace(/\s+/g, '').replace(/-/g, '')
+        const position = pageText.replace(/-/g, '').indexOf(comparable, cursor)
+        expect(position).toBeGreaterThanOrEqual(cursor)
+        cursor = position + comparable.length
+      })
+    })
+    expect(inspection.pageTexts.at(-1)).toContain('Responsive Web Design')
+    expect(inspection.pageTexts.at(-1)).toContain('UX Design Foundations')
+    expect((inspection.pageTexts.at(-1)?.split(/\s+/).length ?? 0)).toBeGreaterThan(50)
+    expect(resume).toEqual(originalResume)
+    expect(pagination).toEqual(originalPagination)
+
+    registerPdfFonts(fontSources)
+    let layout: PdfLayoutDocument | undefined
+    const renderer = await import('@react-pdf/renderer')
+    await renderer.pdf(
+      <CvPdfDocument
+        onLayout={(value) => {
+          layout = value
+        }}
+        pagination={pagination}
+        resume={resume}
+      />,
+    ).toBlob()
+
+    expect(layout?.children).toHaveLength(3)
+    layout?.children.forEach((page) => {
+      expect(page.box?.width).toBeCloseTo(PDF_A4_WIDTH, 2)
+      expect(page.box?.height).toBeCloseTo(PDF_A4_HEIGHT, 2)
+      const content = page.children?.[0]
+      expect(content?.box?.left).toBeCloseTo(0, 2)
+      expect(content?.box?.top).toBeCloseTo(0, 2)
+      expect(content?.box?.width).toBeCloseTo(PDF_A4_WIDTH, 2)
+      expect(content?.box?.height).toBeCloseTo(PDF_A4_HEIGHT, 2)
+      const sidebar = content?.children?.[0]
+      const main = content?.children?.[1]
+      expect(sidebar?.box?.left).toBeCloseTo(0, 2)
+      expect(sidebar?.box?.top).toBeCloseTo(0, 2)
+      expect(sidebar?.box?.width).toBeCloseTo(PDF_SIDEBAR_WIDTH, 2)
+      expect(sidebar?.box?.height).toBeCloseTo(PDF_A4_HEIGHT, 2)
+      expect(sidebar?.children?.[0]?.box?.left).toBeCloseTo(
+        PDF_SIDEBAR_PADDING_HORIZONTAL,
+        2,
+      )
+      expect(sidebar?.children?.[0]?.box?.top).toBeCloseTo(
+        PDF_SIDEBAR_PADDING_TOP,
+        2,
+      )
+      expect(main?.box?.left).toBeCloseTo(PDF_SIDEBAR_WIDTH, 2)
+      expect(main?.box?.top).toBeCloseTo(0, 2)
+      expect(main?.box?.width).toBeCloseTo(PDF_MAIN_WIDTH, 2)
+      expect(main?.box?.height).toBeCloseTo(PDF_A4_HEIGHT, 2)
+      expect(main?.children?.[0]?.box?.top).toBeCloseTo(
+        PDF_MAIN_PADDING_TOP,
+        2,
+      )
+    })
+
+    const firstTwoPages = layout?.children.slice(0, -1) ?? []
+    firstTwoPages.forEach((page) => {
+      const main = page.children?.[0]?.children?.[1]
+      const lastSection = main?.children?.at(-1)
+      const lastContentBottom =
+        (lastSection?.box?.top ?? 0) + (lastSection?.box?.height ?? 0)
+      expect(lastContentBottom).toBeLessThanOrEqual(
+        PDF_A4_HEIGHT - PDF_MAIN_PADDING_BOTTOM + 0.5,
+      )
+      expect(
+        PDF_A4_HEIGHT - PDF_MAIN_PADDING_BOTTOM - lastContentBottom,
+      ).toBeLessThan(150)
+    })
   }, 60_000)
 
   it('fails clearly when pathological content cannot be rendered without clipping', async () => {
