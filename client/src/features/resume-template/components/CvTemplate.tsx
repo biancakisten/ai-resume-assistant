@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type CSSProperties } from 'react'
 import type {
   EducationEntry,
   EmploymentEntry,
@@ -17,6 +17,16 @@ import {
   type SidebarSectionSlice,
   type SidebarTextItem,
 } from '../pagination'
+import {
+  PDF_A4_WIDTH,
+  PDF_MAIN_PADDING_BOTTOM,
+  PDF_MAIN_PADDING_HORIZONTAL,
+  PDF_MAIN_PADDING_TOP,
+  PDF_SIDEBAR_PADDING_BOTTOM,
+  PDF_SIDEBAR_PADDING_HORIZONTAL,
+  PDF_SIDEBAR_PADDING_TOP,
+  PDF_SIDEBAR_RATIO,
+} from '../pdf/pdfGeometry'
 import '../styles/cv-template.css'
 
 const MONTHS = [
@@ -347,7 +357,15 @@ export function CvTemplate({
     () => pagination ?? paginateResume(resume),
     [pagination, resume],
   )
-
+  const pageStyle = {
+    '--cv-main-padding-bottom': `${(PDF_MAIN_PADDING_BOTTOM / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-main-padding-horizontal': `${(PDF_MAIN_PADDING_HORIZONTAL / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-main-padding-top': `${(PDF_MAIN_PADDING_TOP / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-sidebar-padding-bottom': `${(PDF_SIDEBAR_PADDING_BOTTOM / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-sidebar-padding-horizontal': `${(PDF_SIDEBAR_PADDING_HORIZONTAL / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-sidebar-padding-top': `${(PDF_SIDEBAR_PADDING_TOP / PDF_A4_WIDTH) * 100}cqw`,
+    '--cv-sidebar-width': `${PDF_SIDEBAR_RATIO * 100}%`,
+  } as CSSProperties
   return (
     <article
       aria-label={`${fullName || 'Resume'} CV`}
@@ -360,76 +378,79 @@ export function CvTemplate({
           className="cv-template-page"
           data-testid="cv-template-page"
           key={page.key}
+          style={pageStyle}
         >
-          <aside
-            aria-label={
-              page.sidebarContinued
-                ? `CV sidebar, page ${page.pageNumber}`
-                : 'CV sidebar'
-            }
-            className="cv-template-sidebar"
-          >
-            <div
-              className={
+          <div className="cv-template-page__content">
+            <aside
+              aria-label={
                 page.sidebarContinued
-                  ? 'cv-identity cv-identity--continued'
-                  : 'cv-identity'
+                  ? `CV sidebar, page ${page.pageNumber}`
+                  : 'CV sidebar'
               }
+              className="cv-template-sidebar"
             >
-              {!page.sidebarContinued && (
-                <CvPortrait
-                  fullName={fullName}
-                  initials={initials}
-                  key={resume.photograph?.url || 'photograph-placeholder'}
-                  photograph={resume.photograph}
-                />
-              )}
-              {page.sidebarContinued ? (
-                <p className="cv-identity__continued-name">
-                  {fullName || 'Your name'}
+              <div
+                className={
+                  page.sidebarContinued
+                    ? 'cv-identity cv-identity--continued'
+                    : 'cv-identity'
+                }
+              >
+                {!page.sidebarContinued && (
+                  <CvPortrait
+                    fullName={fullName}
+                    initials={initials}
+                    key={resume.photograph?.url || 'photograph-placeholder'}
+                    photograph={resume.photograph}
+                  />
+                )}
+                {page.sidebarContinued ? (
+                  <p className="cv-identity__continued-name">
+                    {fullName || 'Your name'}
+                  </p>
+                ) : (
+                  <h1>{fullName || 'Your name'}</h1>
+                )}
+                <p className="cv-identity__title">
+                  {resume.personalDetails.professionalTitle ||
+                    'Professional title'}
                 </p>
-              ) : (
-                <h1>{fullName || 'Your name'}</h1>
-              )}
-              <p className="cv-identity__title">
-                {resume.personalDetails.professionalTitle ||
-                  'Professional title'}
-              </p>
-              {page.sidebarContinued && (
-                <span aria-hidden="true" className="cv-continuation-label">
-                  CV continued
-                </span>
+                {page.sidebarContinued && (
+                  <span aria-hidden="true" className="cv-continuation-label">
+                    CV continued
+                  </span>
+                )}
+              </div>
+              {page.sidebarSections.map((section) => (
+                <SidebarSection
+                  key={section.key}
+                  section={section}
+                />
+              ))}
+            </aside>
+
+            <div className="cv-template-main">
+              {page.mainSections.map((section) => (
+                <CvMainSection
+                  key={section.key}
+                  title={`${section.title}${section.continued ? ' (continued)' : ''}`}
+                >
+                  <div className={sectionListClass(section.kind)}>
+                    {section.fragments.map((fragment) => (
+                      <MainFragmentContent
+                        fragment={fragment}
+                        key={fragment.key}
+                      />
+                    ))}
+                  </div>
+                </CvMainSection>
+              ))}
+              {page.mainSections.length === 0 && page.pageNumber > 1 && (
+                <p className="cv-main-continuation-note">
+                  Sidebar information continued from the previous page.
+                </p>
               )}
             </div>
-            {page.sidebarSections.map((section) => (
-              <SidebarSection
-                key={section.key}
-                section={section}
-              />
-            ))}
-          </aside>
-
-          <div className="cv-template-main">
-            {page.mainSections.map((section) => (
-              <CvMainSection
-                key={section.key}
-                title={`${section.title}${section.continued ? ' (continued)' : ''}`}
-              >
-                <div className={sectionListClass(section.kind)}>
-                  {section.fragments.map((fragment) => (
-                    <MainFragmentContent
-                      fragment={fragment}
-                      key={fragment.key}
-                    />
-                  ))}
-                </div>
-              </CvMainSection>
-            ))}
-            {page.mainSections.length === 0 && page.pageNumber > 1 && (
-              <p className="cv-main-continuation-note">
-                Sidebar information continued from the previous page.
-              </p>
-            )}
           </div>
         </section>
       ))}

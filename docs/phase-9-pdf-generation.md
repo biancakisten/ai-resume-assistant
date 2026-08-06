@@ -17,9 +17,13 @@ signature, A4 media boxes, page count, and measured layout before exposing a
 native **Download PDF** link.
 
 The PDF document renders exactly one fixed, non-wrapping A4 page for every
-`CvPageModel`. Each page is `595.28 × 841.89` points and keeps the preview's
-34.68% navy sidebar, main-column geometry, blue accents, hierarchy, and stored
-content order. Every supported sidebar and main-column fragment is rendered.
+`CvPageModel`. Each page is `595.28 × 841.89` points. The 34.68% navy sidebar
+touches the top, left and bottom A4 edges, while its text and photograph retain
+independent internal padding. The white main column begins directly beside it.
+Top and horizontal content padding are 56 points, while the bottom boundary
+retains 28 points. Preview and PDF keep the same column
+geometry, blue accents, hierarchy, and stored content order. Every supported
+sidebar and main-column fragment is rendered.
 The generator does not mutate either input.
 
 React-pdf and its production document module are loaded only after the user

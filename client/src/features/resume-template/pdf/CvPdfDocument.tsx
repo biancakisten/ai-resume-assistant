@@ -27,7 +27,13 @@ import { PDF_FONT_FAMILY } from './pdfFonts'
 import {
   PDF_A4_HEIGHT,
   PDF_A4_WIDTH,
+  PDF_MAIN_PADDING_BOTTOM,
+  PDF_MAIN_PADDING_HORIZONTAL,
+  PDF_MAIN_PADDING_TOP,
   PDF_MAIN_WIDTH,
+  PDF_SIDEBAR_PADDING_BOTTOM,
+  PDF_SIDEBAR_PADDING_HORIZONTAL,
+  PDF_SIDEBAR_PADDING_TOP,
   PDF_SIDEBAR_WIDTH,
 } from './pdfGeometry'
 
@@ -59,7 +65,14 @@ const styles = StyleSheet.create({
     color: COPY,
     flexDirection: 'row',
     fontFamily: PDF_FONT_FAMILY,
-    fontSize: 6.7,
+    fontSize: 8,
+    height: PDF_A4_HEIGHT,
+    maxHeight: PDF_A4_HEIGHT,
+    minHeight: PDF_A4_HEIGHT,
+    width: PDF_A4_WIDTH,
+  },
+  pageContent: {
+    flexDirection: 'row',
     height: PDF_A4_HEIGHT,
     maxHeight: PDF_A4_HEIGHT,
     minHeight: PDF_A4_HEIGHT,
@@ -70,9 +83,9 @@ const styles = StyleSheet.create({
     color: SIDEBAR_COPY,
     flexShrink: 0,
     height: PDF_A4_HEIGHT,
-    paddingBottom: 24,
-    paddingHorizontal: 21,
-    paddingTop: 28,
+    paddingBottom: PDF_SIDEBAR_PADDING_BOTTOM,
+    paddingHorizontal: PDF_SIDEBAR_PADDING_HORIZONTAL,
+    paddingTop: PDF_SIDEBAR_PADDING_TOP,
     width: PDF_SIDEBAR_WIDTH,
   },
   identity: {
@@ -109,25 +122,25 @@ const styles = StyleSheet.create({
   },
   portraitInitials: {
     color: NAVY,
-    fontSize: 19,
+    fontSize: 21,
     fontWeight: 700,
   },
   name: {
     color: '#ffffff',
-    fontSize: 14.5,
+    fontSize: 16,
     fontWeight: 700,
     lineHeight: 1.12,
     marginBottom: 4,
   },
   professionalTitle: {
     color: ACCENT,
-    fontSize: 8.5,
+    fontSize: 9.5,
     fontWeight: 700,
     lineHeight: 1.2,
   },
   continuationLabel: {
     color: SIDEBAR_COPY,
-    fontSize: 6,
+    fontSize: 7,
     fontWeight: 500,
     letterSpacing: 0.6,
     marginTop: 4,
@@ -139,7 +152,7 @@ const styles = StyleSheet.create({
   },
   sidebarHeading: {
     color: '#ffffff',
-    fontSize: 8.2,
+    fontSize: 9,
     fontWeight: 700,
     lineHeight: 1.15,
     marginBottom: 5,
@@ -148,9 +161,9 @@ const styles = StyleSheet.create({
   sidebarItem: {
     color: SIDEBAR_COPY,
     flexShrink: 0,
-    fontSize: 6.7,
+    fontSize: 8.2,
     fontWeight: 500,
-    lineHeight: 1.25,
+    lineHeight: 1.3,
     marginBottom: 2,
     textDecoration: 'none',
   },
@@ -161,7 +174,7 @@ const styles = StyleSheet.create({
   },
   contactIcon: {
     color: ACCENT,
-    fontSize: 6.2,
+    fontSize: 7,
     fontWeight: 700,
     width: 13,
   },
@@ -171,17 +184,16 @@ const styles = StyleSheet.create({
   },
   bullet: {
     color: ACCENT,
-    fontSize: 6.7,
+    fontSize: 8.2,
     width: 9,
   },
   main: {
     color: COPY,
     flexShrink: 0,
     height: PDF_A4_HEIGHT,
-    paddingBottom: 30,
-    paddingLeft: 27,
-    paddingRight: 18,
-    paddingTop: 38,
+    paddingBottom: PDF_MAIN_PADDING_BOTTOM,
+    paddingHorizontal: PDF_MAIN_PADDING_HORIZONTAL,
+    paddingTop: PDF_MAIN_PADDING_TOP,
     width: PDF_MAIN_WIDTH,
   },
   mainSection: {
@@ -190,7 +202,7 @@ const styles = StyleSheet.create({
   },
   mainHeading: {
     color: INK,
-    fontSize: 10.2,
+    fontSize: 11.5,
     fontWeight: 700,
     lineHeight: 1.15,
     marginBottom: 9,
@@ -199,7 +211,7 @@ const styles = StyleSheet.create({
   overview: {
     color: COPY,
     flexShrink: 0,
-    fontSize: 7.3,
+    fontSize: 8.6,
     fontWeight: 700,
     lineHeight: 1.3,
   },
@@ -223,39 +235,39 @@ const styles = StyleSheet.create({
   },
   entryTitle: {
     color: INK,
-    fontSize: 8,
+    fontSize: 9.5,
     fontWeight: 700,
     lineHeight: 1.2,
   },
   organisation: {
     color: COPY,
-    fontSize: 6.4,
+    fontSize: 8,
     lineHeight: 1.2,
     marginTop: 2,
   },
   date: {
     color: COPY,
     flexShrink: 0,
-    fontSize: 6.4,
+    fontSize: 8,
     lineHeight: 1.2,
     textAlign: 'right',
   },
   detail: {
     color: COPY,
     flexShrink: 0,
-    fontSize: 6.7,
+    fontSize: 8.8,
     fontWeight: 500,
-    lineHeight: 1.28,
+    lineHeight: 1.34,
     marginTop: 5,
   },
   credentialLink: {
     color: COPY,
-    fontSize: 6.4,
+    fontSize: 8,
     textDecoration: 'none',
   },
   sidebarOnlyNote: {
     color: COPY,
-    fontSize: 6.7,
+    fontSize: 8,
   },
 })
 
@@ -541,7 +553,9 @@ export function CvPdfDocument({
     >
       {pagination.pages.map((page) => (
         <Page key={page.key} size="A4" style={styles.page} wrap={false}>
-          <PdfPageContent page={page} photograph={photograph} resume={resume} />
+          <View style={styles.pageContent}>
+            <PdfPageContent page={page} photograph={photograph} resume={resume} />
+          </View>
         </Page>
       ))}
     </Document>

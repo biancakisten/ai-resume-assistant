@@ -6,7 +6,14 @@ import {
 } from '../pagination'
 import type { PdfLayoutDocument, PdfLayoutNode } from './CvPdfDocument'
 import type { PdfFontSources } from './pdfFonts'
-import { PDF_A4_HEIGHT, PDF_A4_WIDTH } from './pdfGeometry'
+import {
+  PDF_A4_HEIGHT,
+  PDF_A4_WIDTH,
+  PDF_MAIN_PADDING_BOTTOM,
+  PDF_MAIN_WIDTH,
+  PDF_SIDEBAR_PADDING_BOTTOM,
+  PDF_SIDEBAR_WIDTH,
+} from './pdfGeometry'
 import { preparePdfPhotograph } from './preparePdfPhotograph'
 
 export interface GenerateResumePdfOptions {
@@ -77,6 +84,53 @@ function assertSafeLayout(
     page.children?.forEach((child, childIndex) => {
       assertWithinParent(child, PDF_A4_HEIGHT, `page ${index + 1}, column ${childIndex + 1}`)
     })
+    const content = page.children?.[0]
+    const sidebar = content?.children?.[0]
+    const main = content?.children?.[1]
+    if (
+      !content?.box ||
+      Math.abs((content.box.left ?? 0)) > 0.5 ||
+      Math.abs((content.box.top ?? 0)) > 0.5 ||
+      Math.abs(content.box.width - PDF_A4_WIDTH) > 0.5 ||
+      Math.abs(content.box.height - PDF_A4_HEIGHT) > 0.5 ||
+      !sidebar?.box ||
+      Math.abs((sidebar.box.left ?? 0)) > 0.5 ||
+      Math.abs((sidebar.box.top ?? 0)) > 0.5 ||
+      Math.abs(sidebar.box.width - PDF_SIDEBAR_WIDTH) > 0.5 ||
+      Math.abs(sidebar.box.height - PDF_A4_HEIGHT) > 0.5 ||
+      !main?.box ||
+      Math.abs((main.box.left ?? 0) - PDF_SIDEBAR_WIDTH) > 0.5 ||
+      Math.abs((main.box.top ?? 0)) > 0.5 ||
+      Math.abs(main.box.width - PDF_MAIN_WIDTH) > 0.5 ||
+      Math.abs(main.box.height - PDF_A4_HEIGHT) > 0.5
+    ) {
+      throw new Error(`PDF page ${index + 1} does not match the resume preview geometry.`)
+    }
+    const assertContentBoundary = (
+      node: PdfLayoutNode,
+      maximumBottom: number,
+      label: string,
+    ) => {
+      node.children?.forEach((child) => {
+        if (!child.box) return
+        const bottom = (child.box.top ?? 0) + child.box.height
+        if (bottom > maximumBottom + 0.5) {
+          throw new Error(
+            `PDF content does not fit safely inside the ${label} on page ${index + 1}. Shorten the resume and try again.`,
+          )
+        }
+      })
+    }
+    assertContentBoundary(
+      sidebar,
+      PDF_A4_HEIGHT - PDF_SIDEBAR_PADDING_BOTTOM,
+      'sidebar boundary',
+    )
+    assertContentBoundary(
+      main,
+      PDF_A4_HEIGHT - PDF_MAIN_PADDING_BOTTOM,
+      'main-column boundary',
+    )
   })
 }
 

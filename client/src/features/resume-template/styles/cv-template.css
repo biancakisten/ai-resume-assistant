@@ -38,10 +38,16 @@
   box-sizing: border-box;
   color: var(--cv-copy);
   container-type: inline-size;
-  display: grid;
   font-family: 'Roboto', Arial, sans-serif;
-  grid-template-columns: 34.68% 65.32%;
   overflow: visible;
+  width: 100%;
+}
+
+.cv-template-page__content {
+  display: grid;
+  grid-template-columns: var(--cv-sidebar-width) minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
   width: 100%;
 }
 
@@ -56,9 +62,9 @@
   color: var(--cv-sidebar-copy);
   display: flex;
   flex-direction: column;
-  gap: 5.4cqw;
+  gap: 2.18cqw;
   min-width: 0;
-  padding: 6.3cqw 4.44cqw 5cqw;
+  padding: var(--cv-sidebar-padding-top) var(--cv-sidebar-padding-horizontal) var(--cv-sidebar-padding-bottom);
 }
 
 .cv-identity {
@@ -77,10 +83,10 @@
   display: flex;
   font-size: 4.2cqw;
   font-weight: 700;
-  height: 20.97cqw;
+  height: 16.13cqw;
   justify-content: center;
   overflow: hidden;
-  width: 20.97cqw;
+  width: 16.13cqw;
 }
 
 .cv-portrait img {
@@ -92,7 +98,7 @@
 .cv-identity h1,
 .cv-identity__continued-name {
   color: #fff;
-  font-size: 3.39cqw;
+  font-size: 2.69cqw;
   font-weight: 700;
   line-height: 1.15;
   margin: 3.6cqw 0 0;
@@ -101,7 +107,7 @@
 
 .cv-identity__title {
   color: var(--cv-accent);
-  font-size: 1.94cqw;
+  font-size: 1.6cqw;
   font-weight: 700;
   line-height: 1.2;
   margin: 1cqw 0 0;
@@ -132,7 +138,7 @@
 
 .cv-sidebar-section__title {
   color: #fff;
-  font-size: 2.26cqw;
+  font-size: 1.51cqw;
   font-weight: 700;
   line-height: 1.2;
   margin: 0 0 1.45cqw;
@@ -140,9 +146,9 @@
 }
 
 .cv-sidebar-section__content {
-  font-size: 1.53cqw;
+  font-size: 1.38cqw;
   font-weight: 700;
-  line-height: 1.55;
+  line-height: 1.3;
 }
 
 .cv-contact-list {
@@ -202,14 +208,14 @@
   color: var(--cv-copy);
   display: flex;
   flex-direction: column;
-  gap: 5.3cqw;
+  gap: 2.85cqw;
   min-width: 0;
-  padding: 7.65cqw 2.82cqw 6cqw 4.44cqw;
+  padding: var(--cv-main-padding-top) var(--cv-main-padding-horizontal) var(--cv-main-padding-bottom);
 }
 
 .cv-main-section__title {
   color: var(--cv-ink);
-  font-size: 2.42cqw;
+  font-size: 1.93cqw;
   font-weight: 700;
   line-height: 1.2;
   margin: 0 0 2.6cqw;
@@ -217,13 +223,13 @@
 }
 
 .cv-main-section__content {
-  font-size: 1.45cqw;
+  font-size: 1.46cqw;
   font-weight: 500;
-  line-height: 1.48;
+  line-height: 1.34;
 }
 
 .cv-overview {
-  font-size: 1.61cqw;
+  font-size: 1.51cqw;
   font-weight: 700;
   margin: 0;
   overflow-wrap: anywhere;
@@ -231,11 +237,11 @@
 
 .cv-entry-list {
   display: grid;
-  gap: 4.2cqw;
+  gap: 1.85cqw;
 }
 
 .cv-entry-list--compact {
-  gap: 2.9cqw;
+  gap: 1.34cqw;
 }
 
 .cv-entry {
@@ -251,7 +257,7 @@
 
 .cv-entry h3 {
   color: var(--cv-ink);
-  font-size: 1.77cqw;
+  font-size: 1.6cqw;
   font-weight: 700;
   line-height: 1.25;
   margin: 0;
@@ -281,7 +287,7 @@
   font-weight: 700;
   gap: 0.25cqw;
   list-style: none;
-  margin: 2.2cqw 0 0;
+  margin: 0.84cqw 0 0;
   padding: 0;
 }
 

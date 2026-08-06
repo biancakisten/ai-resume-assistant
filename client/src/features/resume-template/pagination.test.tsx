@@ -13,7 +13,9 @@ import { AiConsentDialog } from '../resume-builder/ai/AiConsentDialog'
 import { useResumeAiAssistance } from '../resume-builder/ai/useResumeAiAssistance'
 import { ResumePreview } from '../resume-builder/components/ResumePreview'
 import { CvTemplate } from './components/CvTemplate'
+import { nalediMkhizeResume } from './nalediResume.fixture'
 import { paginateResume } from './pagination'
+import { PDF_SIDEBAR_RATIO } from './pdf/pdfGeometry'
 
 afterEach(() => {
   cleanup()
@@ -357,6 +359,106 @@ describe('deterministic A4 pagination', () => {
     expect(screen.getAllByText('CV continued')).toHaveLength(
       pagination.pages.length - 1,
     )
+  })
+
+  it('balances the full Naledi resume across three pages without a sparse tail', () => {
+    const pagination = paginateResume(nalediMkhizeResume)
+    const orderedEntries = pagination.pages.flatMap((page) =>
+      page.mainSections.flatMap((section) =>
+        section.fragments.flatMap((fragment) =>
+          'entryIndex' in fragment
+            ? [`${fragment.kind}-${fragment.entryIndex}`]
+            : [],
+        ),
+      ),
+    )
+
+    expect(pagination.pages).toHaveLength(3)
+    expect(orderedEntries.filter((value, index) =>
+      index === 0 || value !== orderedEntries[index - 1],
+    )).toEqual([
+      'employment-0',
+      'employment-1',
+      'employment-2',
+      'employment-3',
+      'employment-4',
+      'education-0',
+      'education-1',
+      'education-2',
+      ...Array.from({ length: 10 }, (_, index) => `training-${index}`),
+    ])
+    const pageOneEmployment = pagination.pages[0].mainSections
+      .flatMap((section) => section.fragments)
+      .filter((fragment) => fragment.kind === 'employment')
+    const pageTwoEmployment = pagination.pages[1].mainSections
+      .flatMap((section) => section.fragments)
+      .filter((fragment) => fragment.kind === 'employment')
+    expect(pageOneEmployment.at(-1)?.entryIndex).toBe(2)
+    expect(pageTwoEmployment[0].entryIndex).toBe(2)
+    expect(pageTwoEmployment[0].continued).toBe(true)
+    expect(pageOneEmployment.at(-1)?.details.length).toBeGreaterThan(0)
+    expect(
+      pagination.pages.at(-1)?.mainSections.flatMap(
+        (section) => section.fragments,
+      ).length,
+    ).toBeGreaterThan(5)
+
+    render(
+      <CvTemplate pagination={pagination} resume={nalediMkhizeResume} />,
+    )
+    const pages = screen.getAllByTestId('cv-template-page')
+    expect(pages).toHaveLength(pagination.pages.length)
+    pages.forEach((page) => {
+      expect(page.querySelector('.cv-template-page__content')).not.toBeNull()
+      expect(page.querySelector('.cv-template-sidebar')).not.toBeNull()
+      expect(page.style.padding).toBe('')
+      expect(page.style.getPropertyValue('--cv-sidebar-width')).toBe(
+        `${PDF_SIDEBAR_RATIO * 100}%`,
+      )
+      expect(page.style.getPropertyValue('--cv-main-padding-top')).not.toBe('')
+      expect(
+        page.style.getPropertyValue('--cv-main-padding-horizontal'),
+      ).not.toBe('')
+      expect(
+        page.style.getPropertyValue('--cv-sidebar-padding-horizontal'),
+      ).not.toBe('')
+    })
+  })
+
+  it('uses remaining height for safe employment fragments instead of fixed entry counts', () => {
+    const resume = createEmptyResumeData()
+    const firstEntry = structuredClone(nalediMkhizeResume.employmentHistory[0])
+    const secondEntry = structuredClone(nalediMkhizeResume.employmentHistory[1])
+    secondEntry.description = Array.from(
+      { length: 45 },
+      (_, index) => `Long responsibility ${index + 1} retains its factual content and order.`,
+    ).join('\n')
+    secondEntry.achievements = Array.from(
+      { length: 45 },
+      (_, index) => `Long achievement ${index + 1} remains selectable and complete.`,
+    ).join('\n')
+    resume.employmentHistory = [firstEntry, secondEntry]
+
+    const pagination = paginateResume(resume)
+    const fragments = pagination.pages.map((page) =>
+      page.mainSections.flatMap((section) => section.fragments)
+        .filter((fragment) => fragment.kind === 'employment'),
+    )
+
+    expect(pagination.pages.length).toBeGreaterThan(1)
+    expect(fragments[0].at(-1)?.entryIndex).toBe(1)
+    expect(fragments[0].at(-1)?.details.length).toBeGreaterThan(0)
+    expect(fragments[1][0].entryIndex).toBe(1)
+    expect(fragments[1][0].continued).toBe(true)
+    const renderedDetails = fragments.flatMap((page) =>
+      page.flatMap((fragment) => fragment.details),
+    )
+    expect(renderedDetails).toEqual([
+      ...firstEntry.description.split('\n'),
+      ...firstEntry.achievements.split('\n'),
+      ...secondEntry.description.split('\n'),
+      ...secondEntry.achievements.split('\n'),
+    ].filter(Boolean))
   })
 
   it('offers a concise, reviewable AI request for the longest supported field', () => {
