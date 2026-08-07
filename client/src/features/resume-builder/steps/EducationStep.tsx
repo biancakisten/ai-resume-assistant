@@ -14,7 +14,6 @@ import {
   moveItem,
 } from '../resumeBuilderUtils'
 import type { BuilderStepProps } from '../types'
-import { AiImproveControl } from '../ai/AiImproveControl'
 
 export function EducationStep({ ai, state, updateState }: BuilderStepProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
@@ -221,19 +220,6 @@ export function EducationStep({ ai, state, updateState }: BuilderStepProps) {
               optional
               path={`${prefix}.description`}
               value={entry.description}
-            />
-            <AiImproveControl
-              ai={ai}
-              fieldKey={`education:${entryId}:achievements`}
-              fieldType="educationAchievements"
-              label={`education ${index + 1} achievements`}
-              onChange={(value) =>
-                updateEntry(index, (current) => ({
-                  ...current,
-                  description: value,
-                }))
-              }
-              text={entry.description}
             />
           </fieldset>
         )

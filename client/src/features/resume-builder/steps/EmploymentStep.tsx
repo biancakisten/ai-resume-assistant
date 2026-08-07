@@ -19,7 +19,6 @@ import {
   moveItem,
 } from '../resumeBuilderUtils'
 import type { BuilderStepProps } from '../types'
-import { AiImproveControl } from '../ai/AiImproveControl'
 
 export function EmploymentStep({ ai, state, updateState }: BuilderStepProps) {
   const [deleteIndex, setDeleteIndex] = useState<number | null>(null)
@@ -256,19 +255,6 @@ export function EmploymentStep({ ai, state, updateState }: BuilderStepProps) {
               path={`${prefix}.description`}
               value={entry.description}
             />
-            <AiImproveControl
-              ai={ai}
-              fieldKey={`employment:${entryId}:responsibilities`}
-              fieldType="employmentResponsibilities"
-              label={`role ${index + 1} responsibilities`}
-              onChange={(value) =>
-                updateEntry(index, (current) => ({
-                  ...current,
-                  description: value,
-                }))
-              }
-              text={entry.description}
-            />
             <TextArea
               errors={state.errors}
               label="Achievements"
@@ -282,19 +268,6 @@ export function EmploymentStep({ ai, state, updateState }: BuilderStepProps) {
               optional
               path={`${prefix}.achievements`}
               value={entry.achievements}
-            />
-            <AiImproveControl
-              ai={ai}
-              fieldKey={`employment:${entryId}:achievements`}
-              fieldType="employmentAchievements"
-              label={`role ${index + 1} achievements`}
-              onChange={(value) =>
-                updateEntry(index, (current) => ({
-                  ...current,
-                  achievements: value,
-                }))
-              }
-              text={entry.achievements}
             />
           </fieldset>
         )

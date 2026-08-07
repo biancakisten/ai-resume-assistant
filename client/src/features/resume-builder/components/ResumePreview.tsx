@@ -20,6 +20,7 @@ interface ResumePreviewProps {
   ids?: Pick<RepeatableUiIds, 'education' | 'employment'>
   onApplyShortening?: (selection: ShortenSelection, value: string) => void
   resume: ResumeData
+  showPdfDownload?: boolean
 }
 
 function stableIdFor(
@@ -39,6 +40,7 @@ export function ResumePreview({
   ids,
   onApplyShortening,
   resume,
+  showPdfDownload = false,
 }: ResumePreviewProps) {
   const pagination = useMemo(() => paginateResume(resume), [resume])
   const candidate = pagination.shortenCandidate
@@ -86,7 +88,9 @@ export function ResumePreview({
           />
         </div>
       )}
-      <ResumePdfDownload pagination={pagination} resume={resume} />
+      {showPdfDownload ? (
+        <ResumePdfDownload pagination={pagination} resume={resume} />
+      ) : null}
       <div
         aria-label="Scrollable A4 resume preview"
         className="resume-preview__viewport"

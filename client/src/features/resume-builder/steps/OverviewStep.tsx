@@ -1,10 +1,9 @@
 import type { BuilderStepProps } from '../types'
-import { AiImproveControl } from '../ai/AiImproveControl'
 import { ErrorSummary, TextArea } from '../components/FormControls'
 import { TagInput } from '../components/TagInput'
 import { createUiId } from '../resumeBuilderUtils'
 
-export function OverviewStep({ ai, state, updateState }: BuilderStepProps) {
+export function OverviewStep({ state, updateState }: BuilderStepProps) {
   const updateOverview = (value: string) =>
     updateState((current) => ({
       ...current,
@@ -26,14 +25,6 @@ export function OverviewStep({ ai, state, updateState }: BuilderStepProps) {
         onChange={(event) => updateOverview(event.target.value)}
         path="professionalOverview"
         value={state.resume.professionalOverview}
-      />
-      <AiImproveControl
-        ai={ai}
-        fieldKey="professionalOverview"
-        fieldType="professionalOverview"
-        label="professional overview"
-        onChange={updateOverview}
-        text={state.resume.professionalOverview}
       />
       <TagInput
         createId={() => createUiId('strength')}

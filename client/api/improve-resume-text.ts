@@ -1,5 +1,15 @@
 import OpenAI from 'openai'
 import {
+  AiRateLimitConfigurationError,
+  AiRateLimitUnavailableError,
+  clientIpFromRequest,
+  createUpstashAiRateLimiter,
+  hashClientIp,
+  rateLimitHashSecret,
+  type AiRateLimitEnvironment,
+  type AiRequestRateLimiter,
+} from '../server/ai-rate-limit.js'
+import {
   AI_TEXT_LIMITS,
   isAiFieldType,
   isAiImprovementStyle,
@@ -45,12 +55,14 @@ interface ProviderInput {
 
 type ImproveProvider = (input: ProviderInput) => Promise<unknown>
 
-interface HandlerDependencies {
-  env?: {
+export interface HandlerDependencies {
+  env?: AiRateLimitEnvironment & {
     OPENAI_API_KEY?: string
     OPENAI_MODEL?: string
   }
   improve?: ImproveProvider
+  now?: () => Date
+  rateLimiter?: AiRequestRateLimiter
   timeoutMs?: number
 }
 
@@ -427,6 +439,53 @@ export async function handleImproveResumeText(
       'configuration_error',
       'AI assistance is not configured. Please try again later.',
       false,
+    )
+  }
+
+  try {
+    const ipAddress = clientIpFromRequest(request)
+    if (!ipAddress) {
+      throw new AiRateLimitConfigurationError(
+        'A trusted client IP header is required.',
+      )
+    }
+    const now = dependencies.now?.() ?? new Date()
+    const identifier = hashClientIp(ipAddress, rateLimitHashSecret(env))
+    const limiter =
+      dependencies.rateLimiter ?? createUpstashAiRateLimiter(env)
+    const decision = await limiter({ identifier, now })
+
+    if (!decision.allowed) {
+      const message =
+        decision.reason === 'perIpMonthly'
+          ? 'The monthly free AI limit has been reached. Please try again after the next monthly reset.'
+          : 'AI assistance has reached its current service limit. Please try again after the indicated reset.'
+      return errorResponse(429, 'rate_limited', message, true, {
+        'Retry-After': String(decision.retryAfterSeconds),
+      })
+    }
+  } catch (error) {
+    if (error instanceof AiRateLimitConfigurationError) {
+      return errorResponse(
+        503,
+        'configuration_error',
+        'AI assistance request protection is not configured. Please try again later.',
+        false,
+      )
+    }
+    if (error instanceof AiRateLimitUnavailableError) {
+      return errorResponse(
+        503,
+        'configuration_error',
+        'AI assistance is temporarily unavailable because request protection could not be verified. Please try again later.',
+        true,
+      )
+    }
+    return errorResponse(
+      503,
+      'configuration_error',
+      'AI assistance is temporarily unavailable because request protection could not be verified. Please try again later.',
+      true,
     )
   }
 
