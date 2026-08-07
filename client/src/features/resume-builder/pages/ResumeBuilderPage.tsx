@@ -270,7 +270,6 @@ export default function ResumeBuilderPage() {
         />
         <div className="mt-9">
           <p className="text-sm font-bold text-blue-700">
-            Step {state.currentStep + 1} of {RESUME_STEPS.length} ·{' '}
             {activeStep.title}
           </p>
           <h1
@@ -292,10 +291,13 @@ export default function ResumeBuilderPage() {
             {stepContent}
           </section>
           <ResumePreview
-            ai={ai}
+            ai={state.currentStep === 6 ? ai : undefined}
             ids={state.ids}
-            onApplyShortening={applyShortening}
+            onApplyShortening={
+              state.currentStep === 6 ? applyShortening : undefined
+            }
             resume={state.resume}
+            showPdfDownload={state.currentStep === 6}
           />
         </div>
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">

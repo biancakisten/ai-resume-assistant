@@ -53,7 +53,7 @@ export function ProgressNav({
               >
                 <span className="block">Step {index + 1}</span>
                 <span className="mt-0.5 block truncate">{step.title}</span>
-                <span className="mt-1 block font-normal">{status}</span>
+                <span className="block font-normal">{status}</span>
               </button>
             </li>
           )

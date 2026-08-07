@@ -2,6 +2,10 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import {
+  AiRateLimitUnavailableError,
+  type AiRequestRateLimiter,
+} from '../server/ai-rate-limit.js'
+import {
   createOpenAiRequest,
   handleImproveResumeText,
   SYSTEM_INSTRUCTIONS,
@@ -15,12 +19,18 @@ const validBody = {
 
 function makeRequest(
   body: unknown = validBody,
-  options: { method?: string; contentType?: string; rawBody?: string } = {},
+  options: {
+    clientIp?: string
+    contentType?: string
+    method?: string
+    rawBody?: string
+  } = {},
 ) {
   return new Request('https://example.test/api/improve-resume-text', {
     method: options.method ?? 'POST',
     headers: {
       'Content-Type': options.contentType ?? 'application/json',
+      'x-vercel-forwarded-for': options.clientIp ?? '203.0.113.42',
     },
     body:
       options.method === 'GET'
@@ -30,9 +40,13 @@ function makeRequest(
 }
 
 const configuredEnv = {
+  AI_RATE_LIMIT_IP_HASH_SECRET:
+    'test-only-hash-secret-with-at-least-32-characters',
   OPENAI_API_KEY: 'test-key',
   OPENAI_MODEL: 'test-model',
 }
+
+const allowRateLimiter: AiRequestRateLimiter = async () => ({ allowed: true })
 
 describe('POST /api/improve-resume-text', () => {
   it('accepts POST with JSON only', async () => {
@@ -62,6 +76,7 @@ describe('POST /api/improve-resume-text', () => {
           suggestion: 'Improved text.',
           warnings: [],
         }),
+        rateLimiter: allowRateLimiter,
       },
     )
     expect(parameterResponse.status).toBe(200)
@@ -81,7 +96,7 @@ describe('POST /api/improve-resume-text', () => {
           padding: 'x'.repeat(17 * 1024),
         }),
       }),
-      { env: configuredEnv, improve },
+      { env: configuredEnv, improve, rateLimiter: allowRateLimiter },
     )
 
     expect(response.status).toBe(413)
@@ -142,6 +157,185 @@ describe('POST /api/improve-resume-text', () => {
     })
   })
 
+  it('fails closed when durable rate-limit configuration is missing', async () => {
+    const improve = vi.fn()
+    const response = await handleImproveResumeText(makeRequest(), {
+      env: configuredEnv,
+      improve,
+    })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'configuration_error',
+        message:
+          'AI assistance request protection is not configured. Please try again later.',
+        retryable: false,
+      },
+    })
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the Upstash URL is invalid', async () => {
+    const improve = vi.fn()
+    const response = await handleImproveResumeText(makeRequest(), {
+      env: {
+        ...configuredEnv,
+        UPSTASH_REDIS_REST_TOKEN: 'test-token',
+        UPSTASH_REDIS_REST_URL: 'http://not-secure.example.test',
+      },
+      improve,
+    })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'configuration_error',
+        retryable: false,
+      },
+    })
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('does not trust spoofable forwarded-IP fallbacks', async () => {
+    const improve = vi.fn()
+    const rateLimiter = vi.fn()
+    const response = await handleImproveResumeText(
+      new Request('https://example.test/api/improve-resume-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-forwarded-for': '203.0.113.42',
+          'x-real-ip': '203.0.113.42',
+        },
+        body: JSON.stringify(validBody),
+      }),
+      { env: configuredEnv, improve, rateLimiter },
+    )
+
+    expect(response.status).toBe(503)
+    expect(rateLimiter).not.toHaveBeenCalled()
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the trusted Vercel IP header is malformed', async () => {
+    const improve = vi.fn()
+    const rateLimiter = vi.fn()
+    const response = await handleImproveResumeText(
+      makeRequest(validBody, { clientIp: 'not-an-ip-address' }),
+      { env: configuredEnv, improve, rateLimiter },
+    )
+
+    expect(response.status).toBe(503)
+    expect(rateLimiter).not.toHaveBeenCalled()
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the durable rate limiter is unavailable', async () => {
+    const improve = vi.fn()
+    const response = await handleImproveResumeText(makeRequest(), {
+      env: configuredEnv,
+      improve,
+      rateLimiter: vi
+        .fn()
+        .mockRejectedValue(
+          new AiRateLimitUnavailableError('redis unavailable'),
+        ),
+    })
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'configuration_error',
+        message:
+          'AI assistance is temporarily unavailable because request protection could not be verified. Please try again later.',
+        retryable: true,
+      },
+    })
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('blocks the third monthly request before contacting the provider', async () => {
+    const improve = vi.fn()
+    const response = await handleImproveResumeText(makeRequest(), {
+      env: configuredEnv,
+      improve,
+      rateLimiter: vi.fn().mockResolvedValue({
+        allowed: false,
+        reason: 'perIpMonthly',
+        retryAfterSeconds: 1_425_600,
+      }),
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('1425600')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'rate_limited',
+        message:
+          'The monthly free AI limit has been reached. Please try again after the next monthly reset.',
+        retryable: true,
+      },
+    })
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('blocks the global monthly limit before contacting the provider', async () => {
+    const improve = vi.fn()
+    const response = await handleImproveResumeText(makeRequest(), {
+      env: configuredEnv,
+      improve,
+      rateLimiter: vi.fn().mockResolvedValue({
+        allowed: false,
+        reason: 'globalMonthly',
+        retryAfterSeconds: 1_425_600,
+      }),
+    })
+
+    expect(response.status).toBe(429)
+    expect(response.headers.get('retry-after')).toBe('1425600')
+    expect(await response.json()).toMatchObject({
+      error: {
+        code: 'rate_limited',
+        message: expect.stringContaining('current service limit'),
+      },
+    })
+    expect(improve).not.toHaveBeenCalled()
+  })
+
+  it('passes only a hashed IP identifier to the limiter and logs no private data', async () => {
+    const rateLimiter = vi.fn().mockResolvedValue({ allowed: true })
+    const improve = vi.fn().mockResolvedValue({
+      suggestion: 'Improved text.',
+      warnings: [],
+    })
+    const consoleSpies = [
+      vi.spyOn(console, 'debug').mockImplementation(() => undefined),
+      vi.spyOn(console, 'error').mockImplementation(() => undefined),
+      vi.spyOn(console, 'info').mockImplementation(() => undefined),
+      vi.spyOn(console, 'log').mockImplementation(() => undefined),
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined),
+    ]
+
+    try {
+      const response = await handleImproveResumeText(
+        makeRequest(validBody, { clientIp: '203.0.113.42' }),
+        { env: configuredEnv, improve, rateLimiter },
+      )
+
+      expect(response.status).toBe(200)
+      expect(rateLimiter).toHaveBeenCalledOnce()
+      const limiterInput = rateLimiter.mock.calls[0][0]
+      expect(limiterInput.identifier).toMatch(/^[a-f0-9]{64}$/)
+      expect(JSON.stringify(limiterInput)).not.toContain('203.0.113.42')
+      expect(JSON.stringify(limiterInput)).not.toContain(validBody.text)
+      consoleSpies.forEach((spy) => expect(spy).not.toHaveBeenCalled())
+    } finally {
+      consoleSpies.forEach((spy) => spy.mockRestore())
+    }
+  })
+
   it.each([
     ['professionalOverview', 'professional'],
     ['employmentResponsibilities', 'concise'],
@@ -154,7 +348,7 @@ describe('POST /api/improve-resume-text', () => {
     })
     const response = await handleImproveResumeText(
       makeRequest({ fieldType, style, text: 'Original text.' }),
-      { env: configuredEnv, improve },
+      { env: configuredEnv, improve, rateLimiter: allowRateLimiter },
     )
 
     expect(response.status).toBe(200)
@@ -169,6 +363,7 @@ describe('POST /api/improve-resume-text', () => {
     const response = await handleImproveResumeText(makeRequest(), {
       env: configuredEnv,
       improve,
+      rateLimiter: allowRateLimiter,
     })
 
     expect(response.status).toBe(200)
@@ -222,12 +417,14 @@ describe('POST /api/improve-resume-text', () => {
 
   it('rejects a complete resume payload instead of forwarding it', async () => {
     const improve = vi.fn()
+    const rateLimiter = vi.fn()
     const response = await handleImproveResumeText(
       makeRequest({ ...validBody, resume: { personalDetails: {} } }),
-      { env: configuredEnv, improve },
+      { env: configuredEnv, improve, rateLimiter },
     )
 
     expect(response.status).toBe(400)
+    expect(rateLimiter).not.toHaveBeenCalled()
     expect(improve).not.toHaveBeenCalled()
   })
 
@@ -243,6 +440,7 @@ describe('POST /api/improve-resume-text', () => {
           suggestion: 'Increased sales by 30% through attentive service.',
           warnings: [],
         }),
+        rateLimiter: allowRateLimiter,
       },
     )
 
@@ -269,6 +467,7 @@ describe('POST /api/improve-resume-text', () => {
       {
         env: configuredEnv,
         improve: vi.fn().mockResolvedValue({ suggestion, warnings: [] }),
+        rateLimiter: allowRateLimiter,
       },
     )
 
@@ -291,6 +490,7 @@ describe('POST /api/improve-resume-text', () => {
             'Built accessible forms while mentoring junior developers.',
           warnings: [],
         }),
+        rateLimiter: allowRateLimiter,
       },
     )
 
@@ -312,6 +512,7 @@ describe('POST /api/improve-resume-text', () => {
       const response = await handleImproveResumeText(makeRequest(), {
         env: configuredEnv,
         improve: vi.fn().mockResolvedValue(output),
+        rateLimiter: allowRateLimiter,
       })
       expect(response.status).toBe(502)
       expect(await response.json()).toMatchObject({
@@ -325,18 +526,21 @@ describe('POST /api/improve-resume-text', () => {
       env: configuredEnv,
       timeoutMs: 1,
       improve: () => new Promise((resolve) => setTimeout(resolve, 10)),
+      rateLimiter: allowRateLimiter,
     })
     expect(timeoutResponse.status).toBe(504)
 
     const rateResponse = await handleImproveResumeText(makeRequest(), {
       env: configuredEnv,
       improve: vi.fn().mockRejectedValue({ status: 429 }),
+      rateLimiter: allowRateLimiter,
     })
     expect(rateResponse.status).toBe(429)
 
     const serviceResponse = await handleImproveResumeText(makeRequest(), {
       env: configuredEnv,
       improve: vi.fn().mockRejectedValue(new Error('provider detail')),
+      rateLimiter: allowRateLimiter,
     })
     expect(serviceResponse.status).toBe(502)
     const serviceBody = JSON.stringify(await serviceResponse.json())
@@ -354,7 +558,10 @@ describe('POST /api/improve-resume-text', () => {
     const pendingResponse = handleImproveResumeText(
       new Request('https://example.test/api/improve-resume-text', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-vercel-forwarded-for': '203.0.113.42',
+        },
         body: JSON.stringify(validBody),
         signal: controller.signal,
       }),
@@ -365,6 +572,7 @@ describe('POST /api/improve-resume-text', () => {
           notifyProviderStarted?.()
           return new Promise(() => undefined)
         },
+        rateLimiter: allowRateLimiter,
       },
     )
 

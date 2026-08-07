@@ -10,13 +10,18 @@ variables in Vercel and in an ignored local environment file when using
 ```text
 OPENAI_API_KEY
 OPENAI_MODEL
+UPSTASH_REDIS_REST_URL
+UPSTASH_REDIS_REST_TOKEN
+AI_RATE_LIMIT_IP_HASH_SECRET
 ```
 
-Do not prefix either value with `VITE_`. The browser sends only the selected
+Do not prefix any value with `VITE_`. The browser sends only the selected
 eligible field type, selected improvement style, and selected field text.
 See
 [`../docs/phase-6-controlled-ai-assistance.md`](../docs/phase-6-controlled-ai-assistance.md)
-for the complete architecture, consent, API, security, and setup notes.
+for the controlled-AI architecture and
+[`../docs/final-launch-preparation.md`](../docs/final-launch-preparation.md)
+for the durable request-limit configuration.
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

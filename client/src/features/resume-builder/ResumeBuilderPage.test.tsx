@@ -21,6 +21,7 @@ import { EducationStep } from './steps/EducationStep'
 import { LanguagesInterestsStep } from './steps/LanguagesInterestsStep'
 import { PersonalStep } from './steps/PersonalStep'
 import { OverviewStep } from './steps/OverviewStep'
+import { ReviewStep } from './steps/ReviewStep'
 import { SkillsTrainingStep } from './steps/SkillsTrainingStep'
 import ResumeBuilderPage from './pages/ResumeBuilderPage'
 import {
@@ -143,11 +144,80 @@ function completeRequiredStepsToLanguages() {
   fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 }
 
+function completeRequiredStepsToReview() {
+  completeRequiredStepsToLanguages()
+  fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+}
+
+function createReviewState(overview = 'Original overview.') {
+  const state = createInitialBuilderState()
+  state.currentStep = 6
+  state.highestUnlockedStep = 6
+  state.resume.professionalOverview = overview
+  return state
+}
+
+function renderReview(initialState = createReviewState()) {
+  return render(
+    <StateHarness initialState={initialState}>
+      {(props) => <ReviewStep {...props} onNavigate={vi.fn()} />}
+    </StateHarness>,
+  )
+}
+
+function ReviewDeletionHarness({
+  initialState,
+}: {
+  initialState: ResumeBuilderState
+}) {
+  const [state, setState] = useState(initialState)
+  const ai = useResumeAiAssistance()
+
+  const deleteFirstEmployment = () => {
+    const entryId = state.ids.employment[0]
+    if (entryId) {
+      ai.clear(`employment:${entryId}:responsibilities`)
+      ai.clear(`employment:${entryId}:achievements`)
+    }
+    setState((current) => ({
+      ...current,
+      resume: {
+        ...current.resume,
+        employmentHistory: current.resume.employmentHistory.slice(1),
+      },
+      ids: {
+        ...current.ids,
+        employment: current.ids.employment.slice(1),
+      },
+    }))
+  }
+
+  return (
+    <>
+      <ReviewStep
+        ai={ai}
+        state={state}
+        updateState={(updater) => setState(updater)}
+        onNavigate={vi.fn()}
+      />
+      <button type="button" onClick={deleteFirstEmployment}>
+        Delete first test role
+      </button>
+      <AiConsentDialog ai={ai} />
+    </>
+  )
+}
+
 describe('resume builder navigation', () => {
   it('renders the first step without Back and keeps future steps locked', () => {
     render(<ResumeBuilderPage />)
     expect(screen.getByRole('heading', { name: 'Let’s start with the basics' })).toBeTruthy()
+    expect(screen.getByText('Personal details', { selector: 'p' })).toBeTruthy()
+    expect(screen.queryByText(/Step 1 of 7/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Back' })).toBeNull()
+    expect(
+      screen.queryByRole('heading', { name: 'Download your resume' }),
+    ).toBeNull()
     expect(
       (screen.getByRole('button', {
         name: /Step 3: Employment history. Locked/,
@@ -178,6 +248,9 @@ describe('resume builder navigation', () => {
     completeRequiredStepsToLanguages()
     fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
     expect(screen.getByRole('heading', { name: 'Review your resume information' })).toBeTruthy()
+    expect(
+      screen.getByRole('heading', { name: 'Download your resume' }),
+    ).toBeTruthy()
     const languageStep = screen.getByRole('button', {
       name: /Step 6: Languages and interests. Skipped/,
     })
@@ -520,7 +593,7 @@ describe('skills, languages, and photographs', () => {
 })
 
 describe('controlled AI assistance', () => {
-  it('shows AI controls only for the approved resume fields', () => {
+  it('shows AI controls only on the final Review step', () => {
     const personalView = render(
       <StateHarness initialState={createInitialBuilderState()}>
         {(props) => <PersonalStep {...props} />}
@@ -552,11 +625,7 @@ describe('controlled AI assistance', () => {
         {(props) => <OverviewStep {...props} />}
       </StateHarness>,
     )
-    expect(
-      screen.getByRole('button', {
-        name: 'Improve professional overview with AI',
-      }),
-    ).toBeTruthy()
+    expect(screen.queryByText('Improve with AI')).toBeNull()
     overviewView.unmount()
 
     const employmentState = createInitialBuilderState()
@@ -567,6 +636,40 @@ describe('controlled AI assistance', () => {
         {(props) => <EmploymentStep {...props} />}
       </StateHarness>,
     )
+    expect(screen.queryByText('Improve with AI')).toBeNull()
+    employmentView.unmount()
+
+    const educationState = createInitialBuilderState()
+    educationState.resume.education = [createEducationEntry()]
+    educationState.ids.education = ['education-ai']
+    const educationView = render(
+      <StateHarness initialState={educationState}>
+        {(props) => <EducationStep {...props} />}
+      </StateHarness>,
+    )
+    expect(screen.queryByText('Improve with AI')).toBeNull()
+    educationView.unmount()
+
+    const reviewState = createReviewState()
+    const employment = createEmploymentEntry()
+    employment.description = 'Build accessible products.'
+    employment.achievements = 'Improved delivery quality.'
+    reviewState.resume.employmentHistory = [employment]
+    reviewState.ids.employment = ['employment-ai']
+    const education = createEducationEntry()
+    education.description = 'Completed a capstone project.'
+    reviewState.resume.education = [education]
+    reviewState.ids.education = ['education-ai']
+    renderReview(reviewState)
+
+    expect(
+      screen.getByRole('heading', { name: 'Final AI-assisted polish' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', {
+        name: 'Improve professional overview with AI',
+      }),
+    ).toBeTruthy()
     expect(
       screen.getByRole('button', {
         name: 'Improve role 1 responsibilities with AI',
@@ -577,16 +680,6 @@ describe('controlled AI assistance', () => {
         name: 'Improve role 1 achievements with AI',
       }),
     ).toBeTruthy()
-    employmentView.unmount()
-
-    const educationState = createInitialBuilderState()
-    educationState.resume.education = [createEducationEntry()]
-    educationState.ids.education = ['education-ai']
-    render(
-      <StateHarness initialState={educationState}>
-        {(props) => <EducationStep {...props} />}
-      </StateHarness>,
-    )
     expect(
       screen.getByRole('button', {
         name: 'Improve education 1 achievements with AI',
@@ -605,13 +698,7 @@ describe('controlled AI assistance', () => {
       ),
     )
     vi.stubGlobal('fetch', fetchMock)
-    render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    const overview = screen.getByLabelText('Professional overview')
-    fireEvent.change(overview, {
-      target: { value: 'I build software that is accessible.' },
-    })
+    renderReview(createReviewState('I build software that is accessible.'))
     fireEvent.change(
       screen.getByLabelText('Improvement style for professional overview'),
       { target: { value: 'concise' } },
@@ -659,13 +746,7 @@ describe('controlled AI assistance', () => {
         ),
       )
     vi.stubGlobal('fetch', fetchMock)
-    render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    const overview = screen.getByLabelText('Professional overview')
-    fireEvent.change(overview, {
-      target: { value: 'I build accessible software products.' },
-    })
+    renderReview(createReviewState('I build accessible software products.'))
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Improve professional overview with AI',
@@ -698,11 +779,8 @@ describe('controlled AI assistance', () => {
         ),
       ),
     )
-    render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    renderReview(createReviewState('Original overview.'))
     const overview = screen.getByLabelText('Professional overview')
-    fireEvent.change(overview, { target: { value: 'Original overview.' } })
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Improve professional overview with AI',
@@ -736,11 +814,8 @@ describe('controlled AI assistance', () => {
         ),
       ),
     )
-    render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    renderReview(createReviewState('Exact original overview.'))
     const overview = screen.getByLabelText('Professional overview')
-    fireEvent.change(overview, { target: { value: 'Exact original overview.' } })
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Improve professional overview with AI',
@@ -773,11 +848,8 @@ describe('controlled AI assistance', () => {
         })
       }),
     )
-    render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    renderReview(createReviewState('Original stays here.'))
     const overview = screen.getByLabelText('Professional overview')
-    fireEvent.change(overview, { target: { value: 'Original stays here.' } })
     fireEvent.click(
       screen.getByRole('button', {
         name: 'Improve professional overview with AI',
@@ -812,8 +884,7 @@ describe('controlled AI assistance', () => {
       ),
     )
     render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    completeRequiredStepsToReview()
     const overview = screen.getByLabelText('Professional overview')
     fireEvent.change(overview, { target: { value: 'Original overview.' } })
     fireEvent.click(
@@ -824,14 +895,18 @@ describe('controlled AI assistance', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
     await screen.findByText('Improving only this field…')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit professional overview' }),
+    )
     resolveRequest(
       new Response(
         JSON.stringify({ suggestion: 'Stale suggestion.', warnings: [] }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       ),
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: /Step 7: Review. Available/ }),
+    )
 
     await waitFor(() =>
       expect(screen.queryByText('Stale suggestion.')).toBeNull(),
@@ -864,7 +939,7 @@ describe('controlled AI assistance', () => {
     state.ids.employment = ['stable-first', 'stable-second']
     render(
       <StateHarness initialState={state}>
-        {(props) => <EmploymentStep {...props} />}
+        {(props) => <ReviewStep {...props} onNavigate={vi.fn()} />}
       </StateHarness>,
     )
 
@@ -878,13 +953,16 @@ describe('controlled AI assistance', () => {
       await screen.findByRole('button', { name: 'Accept suggestion' }),
     )
 
-    const responsibilities = screen.getAllByLabelText(/Responsibilities/)
-    expect((responsibilities[0] as HTMLTextAreaElement).value).toBe(
+    expect(
+      (screen.getByLabelText(/Role 1 responsibilities/) as HTMLTextAreaElement)
+        .value,
+    ).toBe(
       'First responsibility.',
     )
-    expect((responsibilities[1] as HTMLTextAreaElement).value).toBe(
-      'Improved second responsibility.',
-    )
+    expect(
+      (screen.getByLabelText(/Role 2 responsibilities/) as HTMLTextAreaElement)
+        .value,
+    ).toBe('Improved second responsibility.')
   })
 
   it('cannot apply a delayed response to another entry after deletion', async () => {
@@ -905,11 +983,7 @@ describe('controlled AI assistance', () => {
     second.description = 'Second responsibility.'
     state.resume.employmentHistory = [first, second]
     state.ids.employment = ['stable-first', 'stable-second']
-    render(
-      <StateHarness initialState={state}>
-        {(props) => <EmploymentStep {...props} />}
-      </StateHarness>,
-    )
+    render(<ReviewDeletionHarness initialState={state} />)
 
     fireEvent.click(
       screen.getByRole('button', {
@@ -918,8 +992,9 @@ describe('controlled AI assistance', () => {
     )
     fireEvent.click(screen.getByRole('button', { name: 'Continue with AI' }))
     await screen.findByText('Improving only this field…')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0])
-    fireEvent.click(screen.getByRole('button', { name: 'Remove role' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Delete first test role' }),
+    )
 
     resolveRequest(
       new Response(
@@ -930,11 +1005,11 @@ describe('controlled AI assistance', () => {
     await waitFor(() =>
       expect(screen.queryByText('Wrong-entry suggestion.')).toBeNull(),
     )
-    const remaining = screen.getAllByLabelText(/Responsibilities/)
-    expect(remaining).toHaveLength(1)
-    expect((remaining[0] as HTMLTextAreaElement).value).toBe(
-      'Second responsibility.',
-    )
+    expect(
+      (screen.getByLabelText(/Role 1 responsibilities/) as HTMLTextAreaElement)
+        .value,
+    ).toBe('Second responsibility.')
+    expect(screen.queryByLabelText(/Role 2 responsibilities/)).toBeNull()
   })
 
   it('clears comparison and undo state when leaving the step', async () => {
@@ -948,8 +1023,7 @@ describe('controlled AI assistance', () => {
       ),
     )
     render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    completeRequiredStepsToReview()
     fireEvent.change(screen.getByLabelText('Professional overview'), {
       target: { value: 'Original overview.' },
     })
@@ -964,8 +1038,12 @@ describe('controlled AI assistance', () => {
     )
     expect(screen.getByRole('button', { name: 'Undo AI suggestion' })).toBeTruthy()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Edit professional overview' }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: /Step 7: Review. Available/ }),
+    )
 
     expect(screen.queryByRole('button', { name: 'Undo AI suggestion' })).toBeNull()
   })
@@ -979,8 +1057,7 @@ describe('controlled AI assistance', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
     render(<ResumeBuilderPage />)
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    completeRequiredStepsToReview()
     fireEvent.change(screen.getByLabelText('Professional overview'), {
       target: { value: 'Overview before reset.' },
     })
@@ -994,8 +1071,7 @@ describe('controlled AI assistance', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Start Over' }))
     fireEvent.click(screen.getByRole('button', { name: 'Start over' }))
-    fillPersonalDetails()
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    completeRequiredStepsToReview()
     fireEvent.change(screen.getByLabelText('Professional overview'), {
       target: { value: 'Overview after reset.' },
     })
